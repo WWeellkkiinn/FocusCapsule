@@ -13,14 +13,13 @@ class MonotonicFocusTimer:
     def start(self, now: float | None = None) -> None:
         current = time.monotonic() if now is None else now
         self.runtime.started_monotonic = current
-        self.runtime.paused_break_accumulated = 0.0
         self.runtime.rest_enter_monotonic = None
 
     def enter_rest(self, now: float | None = None) -> None:
         current = time.monotonic() if now is None else now
         self.runtime.rest_enter_monotonic = current
 
-    def exit_rest(self, now: float | None = None) -> None:
+    def exit_rest(self, _now: float | None = None) -> None:
         if self.runtime.rest_enter_monotonic is None:
             return
         self.runtime.rest_enter_monotonic = None

@@ -15,7 +15,7 @@ def test_timer_rest_time_is_counted_in_focus() -> None:
     timer.start(now=1000.0)
 
     timer.enter_rest(now=1010.0)
-    timer.exit_rest(now=1015.0)
+    timer.exit_rest()
 
     # total elapsed is 20s, and rest time is also counted into focus
     assert timer.compute_focus_remaining(now=1020.0) == 80
