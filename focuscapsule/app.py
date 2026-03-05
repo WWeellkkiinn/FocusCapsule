@@ -46,6 +46,8 @@ class FocusCapsuleApp:
         total_sec = config.total_minutes * 60
         min_interval_sec = max(0, math.ceil(config.interval_min_minutes * 60))
         max_interval_sec = max(0, math.floor(config.interval_max_minutes * 60))
+        # Ensure that rounding does not produce an inverted interval range
+        max_interval_sec = max(max_interval_sec, min_interval_sec)
         trigger_points = build_trigger_points(
             total_sec=total_sec,
             min_interval_sec=min_interval_sec,
