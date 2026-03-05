@@ -19,18 +19,21 @@ def load_config() -> SessionConfig:
         return SessionConfig()
 
     defaults = SessionConfig()
-    return SessionConfig(
-        total_minutes=int(data.get("total_minutes", defaults.total_minutes)),
-        interval_min_minutes=float(
-            data.get("interval_min_minutes", defaults.interval_min_minutes)
-        ),
-        interval_max_minutes=float(
-            data.get("interval_max_minutes", defaults.interval_max_minutes)
-        ),
-        break_seconds=int(data.get("break_seconds", defaults.break_seconds)),
-        sound_enabled=bool(data.get("sound_enabled", defaults.sound_enabled)),
-        seed=data.get("seed", defaults.seed),
-    )
+    try:
+        return SessionConfig(
+            total_minutes=int(data.get("total_minutes", defaults.total_minutes)),
+            interval_min_minutes=float(
+                data.get("interval_min_minutes", defaults.interval_min_minutes)
+            ),
+            interval_max_minutes=float(
+                data.get("interval_max_minutes", defaults.interval_max_minutes)
+            ),
+            break_seconds=int(data.get("break_seconds", defaults.break_seconds)),
+            sound_enabled=bool(data.get("sound_enabled", defaults.sound_enabled)),
+            seed=data.get("seed", defaults.seed),
+        )
+    except (TypeError, ValueError):
+        return SessionConfig()
 
 
 def save_config(config: SessionConfig) -> None:
