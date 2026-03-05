@@ -90,7 +90,7 @@ class OverlayWindow:
                 rect = rect_ptr.contents
                 left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
                 monitors.append((right - left, bottom - top, left, top))
-                return 1
+                return True
 
             user32.EnumDisplayMonitors(0, 0, MONITORENUMPROC(callback), 0)
             if monitors:

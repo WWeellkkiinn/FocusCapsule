@@ -33,7 +33,6 @@ class SessionRuntime:
     break_remaining_sec: int = 0
     trigger_points_sec: list[int] = field(default_factory=list)
     started_monotonic: float = 0.0
-    paused_break_accumulated: float = 0.0
     rest_enter_monotonic: float | None = None
     active_trigger_points: set[int] = field(default_factory=set)
 
