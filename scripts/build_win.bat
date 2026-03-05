@@ -1,10 +1,13 @@
 @echo off
 setlocal
 
-set PYTHON_EXE=C:\Users\asd13\anaconda3\envs\FocusCapsule\python.exe
+if not defined PYTHON_EXE (
+  set PYTHON_EXE=python
+)
 set RUNTIME_HOOK=scripts\pyi_rth_tkfix.py
 
-if not exist "%PYTHON_EXE%" (
+where "%PYTHON_EXE%" >nul 2>&1
+if errorlevel 1 (
   echo python not found: %PYTHON_EXE%
   exit /b 2
 )
@@ -13,14 +16,13 @@ if not exist "%RUNTIME_HOOK%" (
   exit /b 3
 )
 
-set "PATH=C:\Users\asd13\anaconda3\envs\FocusCapsule;C:\Users\asd13\anaconda3\envs\FocusCapsule\Library\bin;C:\Users\asd13\anaconda3\envs\FocusCapsule\DLLs;C:\Windows\System32;C:\Windows;C:\Windows\System32\Wbem"
 set TCL_LIBRARY=
 set TK_LIBRARY=
 set TCLLIBPATH=
 set PYTHONHOME=
 set PYTHONPATH=
 
-cd /d %~dp0\..
+cd /d "%~dp0\.."
 
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
