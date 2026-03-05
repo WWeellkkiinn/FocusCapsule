@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import customtkinter as ctk
 from tkinter import messagebox
 
@@ -43,10 +44,14 @@ class FocusCapsuleApp:
         save_config(config)
 
         total_sec = config.total_minutes * 60
+        min_interval_sec = max(0, math.ceil(config.interval_min_minutes * 60))
+        max_interval_sec = max(0, math.floor(config.interval_max_minutes * 60))
+        # Ensure that rounding does not produce an inverted interval range
+        max_interval_sec = max(max_interval_sec, min_interval_sec)
         trigger_points = build_trigger_points(
             total_sec=total_sec,
-            min_interval_sec=config.interval_min_minutes * 60,
-            max_interval_sec=config.interval_max_minutes * 60,
+            min_interval_sec=min_interval_sec,
+            max_interval_sec=max_interval_sec,
             guard_tail_sec=max(45, config.break_seconds * 2),
             seed=config.seed,
         )
@@ -91,9 +96,9 @@ class FocusCapsuleApp:
                 return
 
         elif self.runtime.state == SessionState.RESTING:
-            self.runtime.break_remaining_sec -= 1
-            self.overlay.update_countdown(self.runtime.break_remaining_sec)
-            if self.runtime.break_remaining_sec <= 0:
+            remaining = self.timer.compute_break_remaining(self.config.break_seconds)
+            self.overlay.update_countdown(remaining)
+            if remaining <= 0:
                 self.exit_rest("timeout")
 
         self._schedule_tick()

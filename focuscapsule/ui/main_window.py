@@ -61,8 +61,8 @@ class MainSettingsWindow(ctk.CTk):
             seed_val = int(seed) if seed else None
             config = SessionConfig(
                 total_minutes=int(self.total_minutes_var.get().strip()),
-                interval_min_minutes=int(self.interval_min_var.get().strip()),
-                interval_max_minutes=int(self.interval_max_var.get().strip()),
+                interval_min_minutes=float(self.interval_min_var.get().strip()),
+                interval_max_minutes=float(self.interval_max_var.get().strip()),
                 break_seconds=int(self.break_seconds_var.get().strip()),
                 sound_enabled=bool(self.sound_var.get()),
                 seed=seed_val,

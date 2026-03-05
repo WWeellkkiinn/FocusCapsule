@@ -19,3 +19,16 @@ def test_timer_pause_for_rest() -> None:
 
     # total elapsed is 20s, but 5s in rest should be excluded
     assert timer.compute_focus_remaining(now=1020.0) == 85
+
+
+def test_break_countdown_not_accelerated_by_tick_frequency() -> None:
+    runtime = SessionRuntime()
+    timer = MonotonicFocusTimer(runtime)
+    timer.enter_rest(now=2000.0)
+
+    # 200ms tick should not reduce one second each tick
+    assert timer.compute_break_remaining(10, now=2000.2) == 10
+    assert timer.compute_break_remaining(10, now=2000.8) == 10
+    assert timer.compute_break_remaining(10, now=2001.0) == 9
+    assert timer.compute_break_remaining(10, now=2009.0) == 1
+    assert timer.compute_break_remaining(10, now=2010.1) == 0
