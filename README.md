@@ -2,6 +2,12 @@
 
 Windows 桌面随机微休息专注工具。
 
+## 运行环境要求（必须）
+
+- 运行与打包必须使用 **Windows 的 Anaconda Python**（建议 `C:\Users\asd13\anaconda3\envs\FocusCapsule\python.exe`）。
+- 不使用 WSL 内的 Python 解释器运行本项目（包括 `~/anaconda3/bin/python`）。
+- 如在 WSL 中触发 Windows 命令，必须调用 Windows 绝对路径（如 `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe`）。
+
 ## 本次大型 Bug
 
 - **现象：** 打包后启动报错：`Can't find a usable init.tcl`，并提示 `have 8.6.14, need exactly 8.6.15`。

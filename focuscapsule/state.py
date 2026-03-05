@@ -14,8 +14,8 @@ class SessionState(str, Enum):
 @dataclass(slots=True)
 class SessionConfig:
     total_minutes: int = 25
-    interval_min_minutes: int = 3
-    interval_max_minutes: int = 5
+    interval_min_minutes: float = 3.0
+    interval_max_minutes: float = 5.0
     break_seconds: int = 10
     sound_enabled: bool = True
     seed: int | None = None
@@ -38,8 +38,8 @@ def validate_config(config: SessionConfig) -> list[str]:
     errors: list[str] = []
     if config.total_minutes < 5:
         errors.append("专注总时长必须不少于 5 分钟")
-    if config.interval_min_minutes < 1:
-        errors.append("随机区间最小值必须不少于 1 分钟")
+    if config.interval_min_minutes < 0:
+        errors.append("随机区间最小值必须不少于 0 分钟")
     if config.interval_min_minutes > config.interval_max_minutes:
         errors.append("随机区间最小值不能大于最大值")
     if not (5 <= config.break_seconds <= 120):
