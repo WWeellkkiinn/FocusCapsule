@@ -10,8 +10,9 @@ from pathlib import Path
 for key in ("TCL_LIBRARY", "TK_LIBRARY", "TCLLIBPATH", "PYTHONHOME", "PYTHONPATH"):
     os.environ.pop(key, None)
 
-base = Path(getattr(sys, "_MEIPASS", ""))
-if base:
+_meipass = getattr(sys, "_MEIPASS", None)
+base = Path(_meipass) if (_meipass and os.path.isabs(_meipass)) else None
+if base is not None:
     tcl_dir = base / "_tcl_data"
     tk_dir = base / "_tk_data"
     if tcl_dir.is_dir() and tk_dir.is_dir():
@@ -37,7 +38,7 @@ if raw_path:
             continue
         parts.append(s)
 
-    # Keep bundled directory at the front.
-    if str(base):
+    # Keep bundled directory at the front only when running from a real bundle.
+    if base is not None:
         parts.insert(0, str(base))
     os.environ["PATH"] = os.pathsep.join(dict.fromkeys(parts))

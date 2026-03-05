@@ -1,8 +1,21 @@
+param(
+  [string]$PythonExe
+)
+
 $ErrorActionPreference = 'Stop'
 
-$python = 'C:\Users\asd13\anaconda3\envs\FocusCapsule\python.exe'
+if (-not $PythonExe) {
+  $cmd = Get-Command python -ErrorAction SilentlyContinue
+  if ($null -ne $cmd) {
+    $python = $cmd.Source
+  } else {
+    $python = 'python'
+  }
+} else {
+  $python = $PythonExe
+}
 
-if (!(Test-Path $python)) {
+if ([System.IO.Path]::IsPathRooted($python) -and -not (Test-Path $python)) {
   Write-Output "python not found: $python"
   exit 2
 }
@@ -56,13 +69,22 @@ try {
   $patchlevel = [string]$data.patchlevel
   $tkVersion = [string]$data.tk
   $tclVersion = [string]$data.tcl
+  $expectedPatchlevel = [string]$env:EXPECTED_TCL_PATCHLEVEL
 
   Write-Output "Tcl patchlevel: $patchlevel"
   Write-Output "_tkinter TK_VERSION: $tkVersion"
   Write-Output "_tkinter TCL_VERSION: $tclVersion"
+  if (-not [string]::IsNullOrWhiteSpace($expectedPatchlevel)) {
+    Write-Output "Expected Tcl patchlevel: $expectedPatchlevel"
+  }
 
   if (($tkVersion -ne $tclVersion) -or (-not $patchlevel.StartsWith($tkVersion))) {
     Write-Output 'Tcl/Tk mismatch.'
+    exit 1
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($expectedPatchlevel) -and ($patchlevel -ne $expectedPatchlevel)) {
+    Write-Output "Tcl patchlevel mismatch: have $patchlevel, expected $expectedPatchlevel."
     exit 1
   }
 

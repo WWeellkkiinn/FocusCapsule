@@ -42,14 +42,15 @@ def _sanitize_path() -> None:
 
 
 def _set_tk_paths(base: Path) -> None:
+    _meipass = getattr(sys, "_MEIPASS", None)
     candidates = [
         base,
         base / "_internal",
-        Path(getattr(sys, "_MEIPASS", "")),
+        Path(_meipass) if (_meipass and os.path.isabs(_meipass)) else None,
     ]
 
     for root in candidates:
-        if not str(root):
+        if root is None:
             continue
         tcl_dir = root / "_tcl_data"
         tk_dir = root / "_tk_data"
@@ -61,9 +62,8 @@ def _set_tk_paths(base: Path) -> None:
 
 
 def prepare_runtime_env() -> None:
-    _clean_env_vars()
-    _sanitize_path()
-
     if getattr(sys, "frozen", False):
+        _clean_env_vars()
+        _sanitize_path()
         exe_dir = Path(sys.executable).resolve().parent
         _set_tk_paths(exe_dir)
