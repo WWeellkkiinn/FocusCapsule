@@ -11,6 +11,7 @@ class MainSettingsWindow(ctk.CTk):
         self.title("FocusCapsule")
         self.geometry("420x360")
         self.resizable(False, False)
+        self.configure(fg_color="#FFFFFF")
         self.on_start = on_start
 
         self.total_minutes_var = ctk.StringVar(value="25")
@@ -24,7 +25,12 @@ class MainSettingsWindow(ctk.CTk):
         self._build()
 
     def _build(self) -> None:
-        frame = ctk.CTkFrame(self)
+        frame = ctk.CTkFrame(
+            self,
+            fg_color="#FFFFFF",
+            corner_radius=16,
+            border_width=0,
+        )
         frame.pack(fill="both", expand=True, padx=20, pady=20)
 
         fields = [
@@ -36,12 +42,19 @@ class MainSettingsWindow(ctk.CTk):
         ]
 
         for idx, (label, var) in enumerate(fields):
-            ctk.CTkLabel(frame, text=label).grid(row=idx, column=0, sticky="w", pady=(8, 4))
-            ctk.CTkEntry(frame, textvariable=var, width=220).grid(
-                row=idx, column=1, sticky="ew", pady=(8, 4)
+            ctk.CTkLabel(frame, text=label, text_color="#243447").grid(
+                row=idx, column=0, sticky="w", pady=(8, 4)
             )
+            ctk.CTkEntry(
+                frame,
+                textvariable=var,
+                width=220,
+                fg_color="#FFFFFF",
+                border_color="#C9D4E3",
+                text_color="#0F172A",
+            ).grid(row=idx, column=1, sticky="ew", pady=(8, 4))
 
-        ctk.CTkSwitch(frame, text="声音提示", variable=self.sound_var).grid(
+        ctk.CTkSwitch(frame, text="声音提示", variable=self.sound_var, text_color="#243447").grid(
             row=len(fields), column=0, columnspan=2, sticky="w", pady=(10, 4)
         )
 
