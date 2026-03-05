@@ -34,5 +34,7 @@ if errorlevel 1 exit /b 1
 "%PYTHON_EXE%" -m PyInstaller --clean --noconfirm --onedir --windowed --runtime-hook "%RUNTIME_HOOK%" --name FocusCapsule main.py
 if errorlevel 1 exit /b 1
 
+if exist FocusCapsule.spec del /f /q FocusCapsule.spec
+
 echo build done: dist\FocusCapsule\FocusCapsule.exe
 exit /b 0

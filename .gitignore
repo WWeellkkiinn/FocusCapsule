@@ -33,3 +33,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local planning doc
+MASTER_BLUEPRINT.md
