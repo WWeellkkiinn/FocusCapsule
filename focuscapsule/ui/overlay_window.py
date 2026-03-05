@@ -3,6 +3,10 @@ from __future__ import annotations
 import customtkinter as ctk
 
 
+def _build_geometry(width: int, height: int, x: int, y: int) -> str:
+    return f"{int(width)}x{int(height)}{int(x):+d}{int(y):+d}"
+
+
 class OverlayWindow:
     def __init__(self, master: ctk.CTk, on_skip) -> None:
         self.master = master
@@ -23,9 +27,10 @@ class OverlayWindow:
                 win.attributes("-alpha", 0.88)
             except Exception:
                 pass
-            win.geometry(f"{width}x{height}+{x}+{y}")
+            win.geometry(_build_geometry(width, height, x, y))
             win.configure(fg_color="#111111")
             win.bind("<Escape>", lambda _e: self.on_skip())
+            win.update_idletasks()
 
             frame = ctk.CTkFrame(win, fg_color="transparent")
             frame.place(relx=0.5, rely=0.5, anchor="center")
@@ -42,6 +47,7 @@ class OverlayWindow:
                 font=("Microsoft YaHei", 16),
             ).pack(pady=(16, 0))
 
+            win.update_idletasks()
             win.focus_force()
             self.windows.append(win)
 
@@ -59,21 +65,30 @@ class OverlayWindow:
     def _screen_specs(self) -> list[tuple[int, int, int, int]]:
         try:
             import ctypes
+            from ctypes import wintypes
+
+            class RECT(ctypes.Structure):
+                _fields_ = [
+                    ("left", wintypes.LONG),
+                    ("top", wintypes.LONG),
+                    ("right", wintypes.LONG),
+                    ("bottom", wintypes.LONG),
+                ]
 
             user32 = ctypes.windll.user32
             monitors: list[tuple[int, int, int, int]] = []
 
             MONITORENUMPROC = ctypes.WINFUNCTYPE(
-                ctypes.c_int,
-                ctypes.c_ulong,
-                ctypes.c_ulong,
-                ctypes.POINTER(ctypes.c_long * 4),
-                ctypes.c_double,
+                wintypes.BOOL,
+                wintypes.HMONITOR,
+                wintypes.HDC,
+                ctypes.POINTER(RECT),
+                wintypes.LPARAM,
             )
 
             def callback(_monitor, _hdc, rect_ptr, _data):
                 rect = rect_ptr.contents
-                left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
+                left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
                 monitors.append((right - left, bottom - top, left, top))
                 return 1
 

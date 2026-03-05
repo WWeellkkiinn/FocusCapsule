@@ -96,6 +96,13 @@ class FocusCapsuleApp:
                 return
 
         elif self.runtime.state == SessionState.RESTING:
+            focus_remaining = self.timer.compute_focus_remaining()
+            if self.capsule and self.capsule.winfo_exists():
+                self.capsule.update_view(focus_remaining, self.runtime.focus_total_sec)
+            if focus_remaining <= 0:
+                self.finish_session()
+                return
+
             remaining = self.timer.compute_break_remaining(self.config.break_seconds)
             self.overlay.update_countdown(remaining)
             if remaining <= 0:
@@ -107,6 +114,8 @@ class FocusCapsuleApp:
         self.runtime.state = SessionState.RESTING
         self.runtime.break_remaining_sec = self.config.break_seconds
         self.timer.enter_rest()
+        if self.capsule and self.capsule.winfo_exists():
+            self.capsule.withdraw()
         self.overlay.show(self.runtime.break_remaining_sec)
         play_alert(self.config.sound_enabled)
         self._schedule_tick()
@@ -115,6 +124,13 @@ class FocusCapsuleApp:
         self.overlay.hide()
         self.timer.exit_rest()
         self.runtime.state = SessionState.FOCUSING
+        if self.capsule and self.capsule.winfo_exists():
+            self.capsule.deiconify()
+            self.capsule.attributes("-topmost", True)
+            self.capsule.update_view(
+                self.runtime.focus_remaining_sec,
+                self.runtime.focus_total_sec,
+            )
         self._schedule_tick()
 
     def skip_rest(self) -> None:

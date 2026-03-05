@@ -9,7 +9,7 @@ def test_timer_basic_countdown() -> None:
     assert timer.compute_focus_remaining(now=1012.4) == 88
 
 
-def test_timer_pause_for_rest() -> None:
+def test_timer_rest_time_is_counted_in_focus() -> None:
     runtime = SessionRuntime(focus_total_sec=100)
     timer = MonotonicFocusTimer(runtime)
     timer.start(now=1000.0)
@@ -17,8 +17,17 @@ def test_timer_pause_for_rest() -> None:
     timer.enter_rest(now=1010.0)
     timer.exit_rest(now=1015.0)
 
-    # total elapsed is 20s, but 5s in rest should be excluded
-    assert timer.compute_focus_remaining(now=1020.0) == 85
+    # total elapsed is 20s, and rest time is also counted into focus
+    assert timer.compute_focus_remaining(now=1020.0) == 80
+
+
+def test_timer_focus_can_finish_while_resting() -> None:
+    runtime = SessionRuntime(focus_total_sec=10)
+    timer = MonotonicFocusTimer(runtime)
+    timer.start(now=1000.0)
+
+    timer.enter_rest(now=1006.0)
+    assert timer.compute_focus_remaining(now=1010.0) == 0
 
 
 def test_break_countdown_not_accelerated_by_tick_frequency() -> None:
