@@ -174,14 +174,11 @@ class OverlayWindow:
                     except Exception:
                         pass
 
-                # Convert physical pixels → logical pixels using per-monitor DPI.
-                # Both position and size must be scaled by the same factor so that
-                # overlay geometry is correct even on mixed-DPI multi-monitor setups.
+                # Tk 在当前 DPI 感知模式下会放大窗口尺寸，但不会同样放大窗口坐标。
+                # 因此这里只修正 width/height，x/y 保持显示器原始坐标。
                 log_w = _scale_overlay_size(right - left, dpi)
                 log_h = _scale_overlay_size(bottom - top, dpi)
-                log_x = int(round(left * 96.0 / dpi))
-                log_y = int(round(top * 96.0 / dpi))
-                monitors.append((log_w, log_h, log_x, log_y))
+                monitors.append((log_w, log_h, left, top))
                 return True
 
             user32.EnumDisplayMonitors(0, 0, MONITORENUMPROC(callback), 0)
