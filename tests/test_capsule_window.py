@@ -41,3 +41,16 @@ def test_compute_drag_position_uses_root_coordinates() -> None:
     )
     assert x == 130
     assert y == 260
+
+
+def test_compute_drag_position_handles_negative_offset() -> None:
+    x, y = compute_drag_position(
+        window_x=-1200,
+        window_y=80,
+        current_root_x=360,
+        current_root_y=200,
+        previous_root_x=400,
+        previous_root_y=160,
+    )
+    assert x == -1240
+    assert y == 120

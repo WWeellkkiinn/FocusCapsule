@@ -24,6 +24,8 @@ class SessionConfig:
     sound_enabled: bool = True
     seed: int | None = None
     start_mode: str = "main"
+    capsule_x: int | None = None
+    capsule_y: int | None = None
 
 
 @dataclass(slots=True)

@@ -6,6 +6,9 @@ import tkinter as tk
 
 DEFAULT_CAPSULE_WIDTH = 188
 DEFAULT_CAPSULE_HEIGHT = 72
+ACTIVE_TIME_FONT = ("Consolas", 24)
+FINISHED_TIME_FONT = ("Microsoft YaHei", 13, "bold")
+FINISHED_TEXT = "专注结束，点击重启"
 
 
 def compute_bottom_right_position(
@@ -35,7 +38,14 @@ def compute_drag_position(
 
 
 class CapsuleWindow(ctk.CTkToplevel):
-    def __init__(self, master: ctk.CTk, on_finish_focus=None, on_show_main=None) -> None:
+    def __init__(
+        self,
+        master: ctk.CTk,
+        on_finish_focus=None,
+        on_show_main=None,
+        on_restart_focus=None,
+        on_position_change=None,
+    ) -> None:
         super().__init__(master)
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -46,21 +56,31 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._position_initialized = False
         self._on_finish_focus = on_finish_focus
         self._on_show_main = on_show_main
+        self._on_restart_focus = on_restart_focus
+        self._on_position_change = on_position_change
 
         self.time_var = ctk.StringVar(value="00:00")
         self._drag_root_x = 0
         self._drag_root_y = 0
+        self._drag_moved = False
+        self._restart_enabled = False
+        self._pending_click_job = None
 
         frame = ctk.CTkFrame(self, corner_radius=16, fg_color="#FFFFFF", border_width=1, border_color="#D7DEE8")
         frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_rowconfigure(0, weight=1)
+        frame.grid_rowconfigure(3, weight=1)
 
-        time_label = ctk.CTkLabel(
+        self.time_label = ctk.CTkLabel(
             frame,
             textvariable=self.time_var,
-            font=("Consolas", 24),
+            font=ACTIVE_TIME_FONT,
             text_color="#0F172A",
+            justify="center",
+            wraplength=148,
         )
-        time_label.pack(pady=(10, 4))
+        self.time_label.grid(row=1, column=0, pady=(0, 6), padx=14)
 
         self.progress = ctk.CTkProgressBar(frame)
         self.progress.configure(
@@ -71,24 +91,24 @@ class CapsuleWindow(ctk.CTkToplevel):
             height=8,
         )
         self.progress.set(0)
-        self.progress.pack(fill="x", padx=28, pady=(0, 12))
+        self.progress.grid(row=2, column=0, sticky="ew", padx=28, pady=(0, 0))
 
         self._bind_pointer_events(frame)
-
-        self._menu = tk.Menu(self, tearoff=0)
-        self._menu.add_command(label="结束专注", command=self._finish_focus)
-        self._menu.add_command(label="显示主界面", command=self._show_main)
 
     def _bind_pointer_events(self, widget) -> None:
         widget.bind("<ButtonPress-1>", self._start_drag)
         widget.bind("<B1-Motion>", self._on_drag)
-        widget.bind("<Button-3>", self._show_context_menu)
+        widget.bind("<ButtonRelease-1>", self._on_left_release)
+        widget.bind("<Double-Button-1>", self._on_double_click)
+        widget.bind("<Control-Button-1>", self._on_ctrl_click)
         for child in widget.winfo_children():
             self._bind_pointer_events(child)
 
     def _start_drag(self, event) -> None:
+        self._cancel_pending_click()
         self._drag_root_x = event.x_root
         self._drag_root_y = event.y_root
+        self._drag_moved = False
 
     def _on_drag(self, event) -> None:
         x, y = compute_drag_position(
@@ -102,14 +122,36 @@ class CapsuleWindow(ctk.CTkToplevel):
         self.geometry(f"+{x}+{y}")
         self._drag_root_x = event.x_root
         self._drag_root_y = event.y_root
+        self._drag_moved = True
         self._position_initialized = True
+        if callable(self._on_position_change):
+            self._on_position_change(x, y)
 
-    def _show_context_menu(self, event) -> str:
-        try:
-            self._menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            self._menu.grab_release()
+    def _on_left_release(self, _event) -> str | None:
+        if self._drag_moved or not self._restart_enabled:
+            return None
+        self._cancel_pending_click()
+        self._pending_click_job = self.after(220, self._restart_focus)
         return "break"
+
+    def _on_double_click(self, _event) -> str:
+        self._cancel_pending_click()
+        self._show_main()
+        return "break"
+
+    def _on_ctrl_click(self, _event) -> str:
+        self._cancel_pending_click()
+        self._finish_focus()
+        return "break"
+
+    def _cancel_pending_click(self) -> None:
+        if self._pending_click_job is None:
+            return
+        try:
+            self.after_cancel(self._pending_click_job)
+        except Exception:
+            pass
+        self._pending_click_job = None
 
     def _enable_transparent_background(self) -> None:
         if sys.platform != "win32":
@@ -128,23 +170,38 @@ class CapsuleWindow(ctk.CTkToplevel):
         if callable(self._on_show_main):
             self._on_show_main()
 
-    def set_default_position(self, margin: int = 24) -> None:
+    def _restart_focus(self) -> None:
+        self._pending_click_job = None
+        if callable(self._on_restart_focus):
+            self._on_restart_focus()
+
+    def set_default_position(
+        self,
+        margin: int = 24,
+        preferred_position: tuple[int, int] | None = None,
+    ) -> None:
         if self._position_initialized:
             return
         self.update_idletasks()
-        width = self.winfo_width()
-        height = self.winfo_height()
-        screen_width = self.winfo_screenwidth()
-        screen_height = self.winfo_screenheight()
-        x, y = compute_bottom_right_position(
-            screen_width=screen_width,
-            screen_height=screen_height,
-            window_width=width,
-            window_height=height,
-            margin=margin,
-        )
+        if preferred_position is not None:
+            x, y = preferred_position
+        else:
+            width = self.winfo_width()
+            height = self.winfo_height()
+            screen_width = self.winfo_screenwidth()
+            screen_height = self.winfo_screenheight()
+            x, y = compute_bottom_right_position(
+                screen_width=screen_width,
+                screen_height=screen_height,
+                window_width=width,
+                window_height=height,
+                margin=margin,
+            )
         self.geometry(f"+{x}+{y}")
         self._position_initialized = True
+
+    def get_position(self) -> tuple[int, int]:
+        return self.winfo_x(), self.winfo_y()
 
     @staticmethod
     def _fmt(seconds: int) -> str:
@@ -152,6 +209,16 @@ class CapsuleWindow(ctk.CTkToplevel):
         return f"{m:02d}:{s:02d}"
 
     def update_view(self, remaining_sec: int, total_sec: int) -> None:
+        self._cancel_pending_click()
+        self._restart_enabled = False
         self.time_var.set(self._fmt(remaining_sec))
+        self.time_label.configure(font=ACTIVE_TIME_FONT)
         ratio = 1.0 if total_sec == 0 else max(0.0, min(1.0, 1 - remaining_sec / total_sec))
         self.progress.set(ratio)
+
+    def show_finished_state(self) -> None:
+        self._cancel_pending_click()
+        self._restart_enabled = True
+        self.time_var.set(FINISHED_TEXT)
+        self.time_label.configure(font=FINISHED_TIME_FONT)
+        self.progress.set(1.0)
