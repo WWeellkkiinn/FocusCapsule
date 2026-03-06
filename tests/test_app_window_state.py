@@ -7,6 +7,7 @@ class MainWindowStub:
         self.updated: list[dict] = []
         self.session_view_calls = 0
         self.config_view_calls = 0
+        self.config_status_messages: list[str] = []
         self.deiconify_calls = 0
         self.withdraw_calls = 0
         self.lift_calls = 0
@@ -20,8 +21,9 @@ class MainWindowStub:
     def show_session_view(self) -> None:
         self.session_view_calls += 1
 
-    def show_config_view(self) -> None:
+    def show_config_view(self, status_message: str = "准备开始专注") -> None:
         self.config_view_calls += 1
+        self.config_status_messages.append(status_message)
 
     def show_error(self, text: str) -> None:
         self.errors.append(text)
@@ -162,10 +164,29 @@ def test_start_session_uses_selected_capsule_mode(monkeypatch) -> None:
     assert calls == ["capsule", "tick"]
 
 
-def test_close_session_returns_to_config_view_and_clears_overlays(monkeypatch) -> None:
+def test_start_session_ignores_seed_from_config_and_uses_automatic_random(monkeypatch) -> None:
+    app = build_app(state=SessionState.IDLE)
+    app.main_window = MainWindowStub()
+    app.timer = TimerStub()
+    captured_kwargs: dict = {}
+    monkeypatch.setattr("focuscapsule.app.save_config", lambda config: None)
+    monkeypatch.setattr(
+        "focuscapsule.app.build_trigger_points",
+        lambda **kwargs: captured_kwargs.update(kwargs) or [],
+    )
+    monkeypatch.setattr("focuscapsule.app.MonotonicFocusTimer", lambda runtime: app.timer)
+    monkeypatch.setattr(app, "_ensure_capsule", lambda: app.capsule)
+    monkeypatch.setattr(app, "_show_capsule_mode", lambda: None)
+    monkeypatch.setattr(app, "_show_main_mode", lambda: None)
+    monkeypatch.setattr(app, "_schedule_tick", lambda: None)
+
+    app.start_session(SessionConfig(seed=123))
+
+    assert captured_kwargs["seed"] is None
+
+
+def test_close_session_returns_to_config_view_and_clears_overlays() -> None:
     app = build_app(capsule_state="normal")
-    messages: list[tuple[str, str]] = []
-    monkeypatch.setattr("focuscapsule.app.messagebox.showinfo", lambda title, text: messages.append((title, text)))
 
     app._close_session("已完成")
 
@@ -173,5 +194,5 @@ def test_close_session_returns_to_config_view_and_clears_overlays(monkeypatch) -
     assert app.overlay.hide_calls == 1
     assert app.capsule.state() == "withdrawn"
     assert app.main_window.config_view_calls == 1
+    assert app.main_window.config_status_messages == ["准备开始专注"]
     assert app.main_window.after_cancel_calls == ["job-1"]
-    assert messages == [("FocusCapsule", "已完成")]

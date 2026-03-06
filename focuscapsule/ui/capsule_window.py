@@ -4,6 +4,9 @@ import customtkinter as ctk
 import sys
 import tkinter as tk
 
+DEFAULT_CAPSULE_WIDTH = 188
+DEFAULT_CAPSULE_HEIGHT = 72
+
 
 def compute_bottom_right_position(
     screen_width: int,
@@ -17,6 +20,20 @@ def compute_bottom_right_position(
     return x, y
 
 
+def compute_drag_position(
+    window_x: int,
+    window_y: int,
+    current_root_x: int,
+    current_root_y: int,
+    previous_root_x: int,
+    previous_root_y: int,
+) -> tuple[int, int]:
+    return (
+        window_x + current_root_x - previous_root_x,
+        window_y + current_root_y - previous_root_y,
+    )
+
+
 class CapsuleWindow(ctk.CTkToplevel):
     def __init__(self, master: ctk.CTk, on_finish_focus=None, on_show_main=None) -> None:
         super().__init__(master)
@@ -25,27 +42,25 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._transparent_key = "#00FF00"
         self.configure(fg_color=self._transparent_key)
         self._enable_transparent_background()
-        self.geometry("280x120+80+80")
+        self.geometry(f"{DEFAULT_CAPSULE_WIDTH}x{DEFAULT_CAPSULE_HEIGHT}+80+80")
         self._position_initialized = False
         self._on_finish_focus = on_finish_focus
         self._on_show_main = on_show_main
 
         self.time_var = ctk.StringVar(value="00:00")
-        frame = ctk.CTkFrame(self, corner_radius=18, fg_color="#FFFFFF", border_width=1, border_color="#D7DEE8")
+        self._drag_root_x = 0
+        self._drag_root_y = 0
+
+        frame = ctk.CTkFrame(self, corner_radius=16, fg_color="#FFFFFF", border_width=1, border_color="#D7DEE8")
         frame.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(
-            frame,
-            text="专注剩余",
-            font=("Microsoft YaHei", 14),
-            text_color="#243447",
-        ).pack(pady=(10, 0))
-        ctk.CTkLabel(
+        time_label = ctk.CTkLabel(
             frame,
             textvariable=self.time_var,
-            font=("Consolas", 32),
+            font=("Consolas", 24),
             text_color="#0F172A",
-        ).pack(pady=(0, 4))
+        )
+        time_label.pack(pady=(10, 4))
 
         self.progress = ctk.CTkProgressBar(frame)
         self.progress.configure(
@@ -53,28 +68,40 @@ class CapsuleWindow(ctk.CTkToplevel):
             progress_color="#3B82F6",
             border_color="#C9D4E3",
             border_width=1,
+            height=8,
         )
         self.progress.set(0)
-        self.progress.pack(fill="x", padx=14, pady=(0, 12))
+        self.progress.pack(fill="x", padx=28, pady=(0, 12))
 
-        self._drag_x = 0
-        self._drag_y = 0
-        frame.bind("<ButtonPress-1>", self._start_drag)
-        frame.bind("<B1-Motion>", self._on_drag)
-        frame.bind("<Button-3>", self._show_context_menu)
+        self._bind_pointer_events(frame)
 
         self._menu = tk.Menu(self, tearoff=0)
         self._menu.add_command(label="结束专注", command=self._finish_focus)
         self._menu.add_command(label="显示主界面", command=self._show_main)
 
+    def _bind_pointer_events(self, widget) -> None:
+        widget.bind("<ButtonPress-1>", self._start_drag)
+        widget.bind("<B1-Motion>", self._on_drag)
+        widget.bind("<Button-3>", self._show_context_menu)
+        for child in widget.winfo_children():
+            self._bind_pointer_events(child)
+
     def _start_drag(self, event) -> None:
-        self._drag_x = event.x
-        self._drag_y = event.y
+        self._drag_root_x = event.x_root
+        self._drag_root_y = event.y_root
 
     def _on_drag(self, event) -> None:
-        x = self.winfo_x() + event.x - self._drag_x
-        y = self.winfo_y() + event.y - self._drag_y
+        x, y = compute_drag_position(
+            window_x=self.winfo_x(),
+            window_y=self.winfo_y(),
+            current_root_x=event.x_root,
+            current_root_y=event.y_root,
+            previous_root_x=self._drag_root_x,
+            previous_root_y=self._drag_root_y,
+        )
         self.geometry(f"+{x}+{y}")
+        self._drag_root_x = event.x_root
+        self._drag_root_y = event.y_root
         self._position_initialized = True
 
     def _show_context_menu(self, event) -> str:

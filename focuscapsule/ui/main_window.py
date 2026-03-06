@@ -4,6 +4,10 @@ import customtkinter as ctk
 
 from focuscapsule.state import SessionConfig
 
+WINDOW_WIDTH = 404
+WINDOW_HEIGHT = 360
+SHORT_INPUT_WIDTH = 62
+
 
 def format_countdown(seconds: int) -> str:
     minutes, secs = divmod(max(0, int(seconds)), 60)
@@ -28,11 +32,33 @@ def normalize_start_mode(value: str) -> str:
     return "capsule" if value == "capsule" else "main"
 
 
+def compute_center_position(
+    screen_width: int,
+    screen_height: int,
+    window_width: int,
+    window_height: int,
+) -> tuple[int, int]:
+    x = max(0, (int(screen_width) - int(window_width)) // 2)
+    y = max(0, (int(screen_height) - int(window_height)) // 2)
+    return x, y
+
+
+def compute_window_outer_size(
+    client_width: int,
+    client_height: int,
+    frame_width: int,
+    titlebar_height: int,
+) -> tuple[int, int]:
+    outer_width = int(client_width) + max(0, int(frame_width) * 2)
+    outer_height = int(client_height) + max(0, int(frame_width)) + max(0, int(titlebar_height))
+    return outer_width, outer_height
+
+
 class MainSettingsWindow(ctk.CTk):
     def __init__(self, on_start, on_switch_to_capsule=None, on_end_session=None) -> None:
         super().__init__()
         self.title("FocusCapsule")
-        self.geometry("440x520")
+        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.resizable(False, False)
         self.configure(fg_color="#FFFFFF")
         self.on_start = on_start
@@ -44,75 +70,77 @@ class MainSettingsWindow(ctk.CTk):
         self.interval_max_var = ctk.StringVar(value="5")
         self.break_seconds_var = ctk.StringVar(value="10")
         self.sound_var = ctk.BooleanVar(value=True)
-        self.seed_var = ctk.StringVar(value="")
         self.capsule_mode_var = ctk.BooleanVar(value=False)
         self.error_var = ctk.StringVar(value="")
-        self.session_hint_var = ctk.StringVar(value="准备开始专注")
+        self.session_hint_var = ctk.StringVar(value="当前正在专注，请保持节奏。")
         self.countdown_var = ctk.StringVar(value="25:00")
+        self._error_label: ctk.CTkLabel | None = None
 
         self._build()
+        self._center_on_screen()
         self._bind_preview_updates()
         self.show_config_view()
+
+    def _center_on_screen(self) -> None:
+        self.update_idletasks()
+        frame_width = self.winfo_rootx() - self.winfo_x()
+        titlebar_height = self.winfo_rooty() - self.winfo_y()
+        outer_width, outer_height = compute_window_outer_size(
+            client_width=self.winfo_width(),
+            client_height=self.winfo_height(),
+            frame_width=frame_width,
+            titlebar_height=titlebar_height,
+        )
+        x, y = compute_center_position(
+            screen_width=self.winfo_screenwidth(),
+            screen_height=self.winfo_screenheight(),
+            window_width=outer_width,
+            window_height=outer_height,
+        )
+        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}+{x}+{y}")
 
     def _build(self) -> None:
         self.container = ctk.CTkFrame(
             self,
             fg_color="#FFFFFF",
-            corner_radius=16,
+            corner_radius=0,
             border_width=0,
         )
-        self.container.pack(fill="both", expand=True, padx=18, pady=18)
+        self.container.pack(fill="both", expand=True, padx=14, pady=12)
 
         self.config_frame = ctk.CTkFrame(
             self.container,
             fg_color="#FFFFFF",
-            corner_radius=16,
             border_width=0,
         )
         self.session_frame = ctk.CTkFrame(
             self.container,
             fg_color="#FFFFFF",
-            corner_radius=16,
             border_width=0,
         )
 
         self._build_config_view()
         self._build_session_view()
 
-    def _create_countdown_card(self, master, subtitle_var=None) -> ctk.CTkProgressBar:
+    def _create_countdown_card(self, master) -> ctk.CTkProgressBar:
         card = ctk.CTkFrame(
             master,
-            fg_color="#F8FAFC",
+            fg_color="#F6F8FB",
             border_color="#D7DEE8",
             border_width=1,
             corner_radius=18,
+            height=108,
         )
-        card.pack(fill="x", pady=(0, 16))
+        card.pack(fill="x", pady=(0, 10))
 
-        ctk.CTkLabel(
-            card,
-            text="专注倒计时",
-            font=("Microsoft YaHei", 14),
-            text_color="#243447",
-        ).pack(pady=(14, 0))
         ctk.CTkLabel(
             card,
             textvariable=self.countdown_var,
-            font=("Consolas", 36),
+            font=("Consolas", 34),
             text_color="#0F172A",
-        ).pack(pady=(0, 4))
-        if subtitle_var is not None:
-            ctk.CTkLabel(
-                card,
-                textvariable=subtitle_var,
-                font=("Microsoft YaHei", 12),
-                text_color="#526072",
-            ).pack(pady=(0, 10))
-            progress_pady = (0, 14)
-        else:
-            progress_pady = (8, 14)
+        ).pack(expand=True, pady=(12, 6))
 
-        progress = ctk.CTkProgressBar(card)
+        progress = ctk.CTkProgressBar(card, height=10)
         progress.configure(
             fg_color="#E5EAF2",
             progress_color="#3B82F6",
@@ -120,100 +148,193 @@ class MainSettingsWindow(ctk.CTk):
             border_width=1,
         )
         progress.set(0)
-        progress.pack(fill="x", padx=16, pady=progress_pady)
+        progress.pack(fill="x", padx=16, pady=(0, 12))
         return progress
 
-    def _build_config_view(self) -> None:
-        self.preview_progress = self._create_countdown_card(self.config_frame)
+    def _create_panel(self, master, height: int | None = None) -> ctk.CTkFrame:
+        panel_kwargs = {
+            "fg_color": "#FFFFFF",
+            "border_color": "#E5EAF2",
+            "border_width": 1,
+            "corner_radius": 18,
+        }
+        if height is not None:
+            panel_kwargs["height"] = height
+        panel = ctk.CTkFrame(master, **panel_kwargs)
+        panel.pack(fill="x", pady=(0, 8))
+        return panel
 
-        form_card = ctk.CTkFrame(
-            self.config_frame,
+    def _create_short_entry(self, master, variable: ctk.StringVar) -> ctk.CTkEntry:
+        return ctk.CTkEntry(
+            master,
+            textvariable=variable,
+            width=SHORT_INPUT_WIDTH,
+            height=32,
+            justify="center",
             fg_color="#FFFFFF",
-            border_color="#E5EAF2",
-            border_width=1,
-            corner_radius=18,
+            border_color="#C9D4E3",
+            text_color="#0F172A",
         )
-        form_card.pack(fill="x", pady=(0, 14))
 
-        fields = [
-            ("专注总时长(分钟)", self.total_minutes_var),
-            ("随机区间最小值(分钟)", self.interval_min_var),
-            ("随机区间最大值(分钟)", self.interval_max_var),
-            ("休息时长(秒)", self.break_seconds_var),
-            ("随机种子(可选)", self.seed_var),
-        ]
+    def _build_compact_field_panel(self) -> ctk.CTkFrame:
+        panel = self._create_panel(self.config_frame)
+        top_row = ctk.CTkFrame(panel, fg_color="transparent")
+        top_row.pack(fill="x", padx=14, pady=(10, 6))
+        top_row.grid_columnconfigure(1, weight=1)
+        top_row.grid_columnconfigure(3, weight=1)
 
-        for idx, (label, var) in enumerate(fields):
-            ctk.CTkLabel(form_card, text=label, text_color="#243447").grid(
-                row=idx, column=0, sticky="w", pady=(10, 4), padx=(16, 10)
-            )
-            ctk.CTkEntry(
-                form_card,
-                textvariable=var,
-                width=220,
-                fg_color="#FFFFFF",
-                border_color="#C9D4E3",
-                text_color="#0F172A",
-            ).grid(row=idx, column=1, sticky="ew", pady=(10, 4), padx=(0, 16))
+        ctk.CTkLabel(top_row, text="专注时长", text_color="#243447").grid(
+            row=0, column=0, sticky="w"
+        )
+        duration_row = ctk.CTkFrame(top_row, fg_color="transparent")
+        duration_row.grid(row=0, column=1, sticky="w", padx=(8, 18))
+        self._create_short_entry(duration_row, self.total_minutes_var).pack(side="left")
+        ctk.CTkLabel(duration_row, text="分钟", text_color="#526072").pack(side="left", padx=(8, 0))
+
+        ctk.CTkLabel(top_row, text="休息时长", text_color="#243447").grid(
+            row=0, column=2, sticky="w"
+        )
+        break_row = ctk.CTkFrame(top_row, fg_color="transparent")
+        break_row.grid(row=0, column=3, sticky="w", padx=(8, 0))
+        self._create_short_entry(break_row, self.break_seconds_var).pack(side="left")
+        ctk.CTkLabel(break_row, text="秒", text_color="#526072").pack(side="left", padx=(8, 0))
+
+        bottom_row = ctk.CTkFrame(panel, fg_color="transparent")
+        bottom_row.pack(fill="x", padx=14, pady=(0, 10))
+        ctk.CTkLabel(bottom_row, text="随机区间", text_color="#243447").pack(side="left")
+        interval_row = ctk.CTkFrame(bottom_row, fg_color="transparent")
+        interval_row.pack(side="left", padx=(8, 0))
+        self._create_short_entry(interval_row, self.interval_min_var).pack(side="left")
+        ctk.CTkLabel(interval_row, text="~", text_color="#526072").pack(side="left", padx=8)
+        self._create_short_entry(interval_row, self.interval_max_var).pack(side="left")
+        ctk.CTkLabel(interval_row, text="分钟", text_color="#526072").pack(side="left", padx=(8, 0))
+        return panel
+
+    def _build_toggle_panel(self) -> ctk.CTkFrame:
+        panel = self._create_panel(self.config_frame)
+        switch_row = ctk.CTkFrame(panel, fg_color="transparent")
+        switch_row.pack(fill="x", padx=10, pady=8)
 
         ctk.CTkSwitch(
-            form_card,
+            switch_row,
             text="声音提示",
             variable=self.sound_var,
             text_color="#243447",
-        ).grid(row=len(fields), column=0, columnspan=2, sticky="w", pady=(12, 12), padx=16)
+        ).pack(side="left", padx=(4, 14))
         ctk.CTkSwitch(
-            form_card,
+            switch_row,
             text="胶囊模式",
             variable=self.capsule_mode_var,
             text_color="#243447",
-        ).grid(row=len(fields) + 1, column=0, columnspan=2, sticky="w", pady=(0, 12), padx=16)
-        form_card.columnconfigure(1, weight=1)
+        ).pack(side="left")
+        return panel
 
-        action_card = ctk.CTkFrame(
+    def _build_status_panel(self, master, text_var: ctk.StringVar, text_color: str = "#526072") -> ctk.CTkFrame:
+        panel = self._create_panel(master, height=74)
+        ctk.CTkLabel(
+            panel,
+            textvariable=text_var,
+            text_color=text_color,
+            justify="left",
+            wraplength=344,
+        ).pack(fill="x", padx=16, pady=(14, 14))
+        return panel
+
+    def _build_action_panel(
+        self,
+        master,
+        button_specs: list[dict],
+        error_var=None,
+        height: int | None = None,
+    ) -> ctk.CTkFrame:
+        panel = self._create_panel(master, height=height)
+        for idx, spec in enumerate(button_specs):
+            pady = (12, 8) if idx == 0 else (0, 8)
+            if idx == len(button_specs) - 1:
+                pady = (pady[0], 12)
+            button_kwargs = {
+                "text": spec["text"],
+                "command": spec["command"],
+                "height": 34,
+            }
+            for key in ("fg_color", "hover_color", "text_color"):
+                if key in spec:
+                    button_kwargs[key] = spec[key]
+            button = ctk.CTkButton(panel, **button_kwargs)
+            button.pack(fill="x", padx=14, pady=pady)
+            spec["widget_ref"][0] = button
+
+        if error_var is not None:
+            self._error_label = ctk.CTkLabel(
+                panel,
+                textvariable=error_var,
+                text_color="#ff6b6b",
+                anchor="w",
+                justify="left",
+                wraplength=344,
+            )
+            error_var.trace_add("write", self._on_error_text_changed)
+            self._toggle_error_label(error_var.get())
+        return panel
+
+    def _toggle_error_label(self, text: str) -> None:
+        if self._error_label is None:
+            return
+        if text.strip():
+            if not self._error_label.winfo_manager():
+                self._error_label.pack(fill="x", padx=14, pady=(0, 10))
+        elif self._error_label.winfo_manager():
+            self._error_label.pack_forget()
+
+    def _on_error_text_changed(self, *_args) -> None:
+        self._toggle_error_label(self.error_var.get())
+
+    def _build_config_view(self) -> None:
+        self.preview_progress = self._create_countdown_card(self.config_frame)
+        self._build_compact_field_panel()
+        self._build_toggle_panel()
+
+        start_button_ref = [None]
+        self._build_action_panel(
             self.config_frame,
-            fg_color="#FFFFFF",
-            border_color="#E5EAF2",
-            border_width=1,
-            corner_radius=18,
+            button_specs=[
+                {
+                    "text": "开始专注",
+                    "command": self._on_start_clicked,
+                    "widget_ref": start_button_ref,
+                }
+            ],
+            error_var=self.error_var,
         )
-        action_card.pack(fill="x")
-
-        ctk.CTkButton(action_card, text="开始专注", command=self._on_start_clicked).pack(
-            fill="x", padx=16, pady=(14, 8)
-        )
-        ctk.CTkLabel(action_card, textvariable=self.error_var, text_color="#ff6b6b").pack(
-            anchor="w", padx=16, pady=(0, 14)
-        )
+        self.start_button = start_button_ref[0]
 
     def _build_session_view(self) -> None:
-        self.session_progress = self._create_countdown_card(self.session_frame, self.session_hint_var)
+        self.session_progress = self._create_countdown_card(self.session_frame)
+        self._build_status_panel(self.session_frame, self.session_hint_var)
 
-        action_card = ctk.CTkFrame(
+        switch_button_ref = [None]
+        end_button_ref = [None]
+        self._build_action_panel(
             self.session_frame,
-            fg_color="#FFFFFF",
-            border_color="#E5EAF2",
-            border_width=1,
-            corner_radius=18,
+            button_specs=[
+                {
+                    "text": "切换到胶囊模式",
+                    "command": self._on_switch_to_capsule_clicked,
+                    "widget_ref": switch_button_ref,
+                },
+                {
+                    "text": "结束专注",
+                    "command": self._on_end_session_clicked,
+                    "fg_color": "#E2E8F0",
+                    "hover_color": "#CBD5E1",
+                    "text_color": "#0F172A",
+                    "widget_ref": end_button_ref,
+                },
+            ],
+            height=96,
         )
-        action_card.pack(fill="x")
-
-        self.switch_mode_button = ctk.CTkButton(
-            action_card,
-            text="切换到胶囊模式",
-            command=self._on_switch_to_capsule_clicked,
-        )
-        self.switch_mode_button.pack(fill="x", padx=16, pady=(14, 8))
-
-        self.end_session_button = ctk.CTkButton(
-            action_card,
-            text="结束专注",
-            fg_color="#E2E8F0",
-            hover_color="#CBD5E1",
-            text_color="#0F172A",
-            command=self._on_end_session_clicked,
-        )
-        self.end_session_button.pack(fill="x", padx=16, pady=(0, 14))
+        self.switch_mode_button = switch_button_ref[0]
+        self.end_session_button = end_button_ref[0]
 
     def _bind_preview_updates(self) -> None:
         self.total_minutes_var.trace_add("write", self._on_total_minutes_changed)
@@ -233,15 +354,13 @@ class MainSettingsWindow(ctk.CTk):
 
     def _on_start_clicked(self) -> None:
         try:
-            seed = self.seed_var.get().strip()
-            seed_val = int(seed) if seed else None
             config = SessionConfig(
                 total_minutes=int(self.total_minutes_var.get().strip()),
                 interval_min_minutes=float(self.interval_min_var.get().strip()),
                 interval_max_minutes=float(self.interval_max_var.get().strip()),
                 break_seconds=int(self.break_seconds_var.get().strip()),
                 sound_enabled=bool(self.sound_var.get()),
-                seed=seed_val,
+                seed=None,
                 start_mode="capsule" if bool(self.capsule_mode_var.get()) else "main",
             )
         except ValueError:
@@ -264,15 +383,14 @@ class MainSettingsWindow(ctk.CTk):
         self.interval_max_var.set(str(config.interval_max_minutes))
         self.break_seconds_var.set(str(config.break_seconds))
         self.sound_var.set(config.sound_enabled)
-        self.seed_var.set("" if config.seed is None else str(config.seed))
         self.capsule_mode_var.set(normalize_start_mode(config.start_mode) == "capsule")
         self._update_preview_countdown()
 
     def show_error(self, text: str) -> None:
         self.error_var.set(text)
 
-    def show_config_view(self) -> None:
-        self.session_hint_var.set("准备开始专注")
+    def show_config_view(self, status_message: str = "准备开始专注") -> None:
+        self.session_hint_var.set(status_message)
         self._update_preview_countdown()
         self._show_view(self.config_frame)
 
