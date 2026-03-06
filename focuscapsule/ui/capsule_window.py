@@ -63,7 +63,6 @@ class CapsuleWindow(ctk.CTkToplevel):
         frame.bind("<B1-Motion>", self._on_drag)
         frame.bind("<Button-3>", self._show_context_menu)
 
-        self.bind("<Button-3>", self._show_context_menu)
         self._menu = tk.Menu(self, tearoff=0)
         self._menu.add_command(label="结束专注", command=self._finish_focus)
         self._menu.add_command(label="显示主界面", command=self._show_main)
@@ -78,11 +77,12 @@ class CapsuleWindow(ctk.CTkToplevel):
         self.geometry(f"+{x}+{y}")
         self._position_initialized = True
 
-    def _show_context_menu(self, event) -> None:
+    def _show_context_menu(self, event) -> str:
         try:
             self._menu.tk_popup(event.x_root, event.y_root)
         finally:
             self._menu.grab_release()
+        return "break"
 
     def _enable_transparent_background(self) -> None:
         if sys.platform != "win32":
