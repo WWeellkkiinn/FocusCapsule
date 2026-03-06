@@ -1,28 +1,12 @@
 from focuscapsule.ui.overlay_window import OverlayWindow, _build_geometry, _scale_overlay_size
 
 
-def test_geometry_negative_x() -> None:
+def test_overlay_geometry_helpers_cover_signs_and_dpi_scaling() -> None:
     assert _build_geometry(1080, 1920, -1080, 0) == "1080x1920-1080+0"
-
-
-def test_geometry_positive_x() -> None:
     assert _build_geometry(1920, 1080, 1080, 0) == "1920x1080+1080+0"
-
-
-def test_geometry_negative_y() -> None:
     assert _build_geometry(1920, 1080, 0, -120) == "1920x1080+0-120"
-
-
-def test_geometry_no_plus_minus_combo() -> None:
-    geometry = _build_geometry(1080, 1920, -1080, -120)
-    assert "+-" not in geometry
-
-
-def test_scale_overlay_size_only_adjusts_dimensions_for_tk() -> None:
+    assert "+-" not in _build_geometry(1080, 1920, -1080, -120)
     assert _scale_overlay_size(3840, 144.0) == 2560
-
-
-def test_negative_monitor_x_coordinate_must_remain_unscaled() -> None:
     geometry = _build_geometry(
         _scale_overlay_size(1440, 144.0),
         _scale_overlay_size(2560, 144.0),
@@ -78,7 +62,7 @@ class OverlayWinStub:
         self.destroy_calls += 1
 
 
-def test_activate_windows_raises_overlay_to_topmost() -> None:
+def test_overlay_activate_windows_only_touches_existing_windows() -> None:
     overlay = OverlayWindow.__new__(OverlayWindow)
     overlay.windows = [OverlayWinStub(), OverlayWinStub(exists=False)]
 
@@ -90,7 +74,7 @@ def test_activate_windows_raises_overlay_to_topmost() -> None:
     assert overlay.windows[1].lift_calls == 0
 
 
-def test_hide_cleans_escape_binding_and_activation_job() -> None:
+def test_overlay_hide_cleans_bindings_jobs_and_windows() -> None:
     overlay = OverlayWindow.__new__(OverlayWindow)
     overlay.master = OverlayMasterStub()
     overlay.windows = [OverlayWinStub()]

@@ -32,6 +32,8 @@ def load_config() -> SessionConfig:
             sound_enabled=bool(data.get("sound_enabled", defaults.sound_enabled)),
             seed=data.get("seed", defaults.seed),
             start_mode=str(data.get("start_mode", defaults.start_mode)),
+            capsule_x=_parse_optional_int(data.get("capsule_x", defaults.capsule_x)),
+            capsule_y=_parse_optional_int(data.get("capsule_y", defaults.capsule_y)),
         )
     except (TypeError, ValueError):
         return SessionConfig()
@@ -44,3 +46,12 @@ def save_config(config: SessionConfig) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def _parse_optional_int(value) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

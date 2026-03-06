@@ -1,7 +1,7 @@
 from focuscapsule.scheduler import build_trigger_points
 
 
-def test_trigger_points_order_and_range() -> None:
+def test_trigger_points_are_ordered_unique_in_range_and_seed_reproducible() -> None:
     points = build_trigger_points(
         total_sec=1500,
         min_interval_sec=180,
@@ -9,12 +9,8 @@ def test_trigger_points_order_and_range() -> None:
         guard_tail_sec=45,
         seed=42,
     )
+
     assert points == sorted(points, reverse=True)
     assert len(points) == len(set(points))
-    assert all(45 < p < 1500 for p in points)
-
-
-def test_trigger_points_seed_reproducible() -> None:
-    p1 = build_trigger_points(1500, 180, 300, 45, seed=7)
-    p2 = build_trigger_points(1500, 180, 300, 45, seed=7)
-    assert p1 == p2
+    assert all(45 < point < 1500 for point in points)
+    assert points == build_trigger_points(1500, 180, 300, 45, seed=42)

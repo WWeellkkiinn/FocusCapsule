@@ -4,12 +4,19 @@ import dataclasses
 import math
 import customtkinter as ctk
 
-from focuscapsule.audio import play_alert
+from focuscapsule.audio import play_double_alert, play_triple_alert
 from focuscapsule.config import load_config, save_config
 from focuscapsule.scheduler import build_trigger_points
 from focuscapsule.state import SessionConfig, SessionRuntime, SessionState, validate_config
 from focuscapsule.timer import MonotonicFocusTimer
-from focuscapsule.ui.capsule_window import CapsuleWindow
+from focuscapsule.ui.capsule_window import (
+    DEFAULT_CAPSULE_HEIGHT,
+    DEFAULT_CAPSULE_WIDTH,
+    CapsuleWindow,
+    compute_clamped_capsule_position,
+    compute_default_capsule_position,
+    get_display_bounds,
+)
 from focuscapsule.ui.main_window import MainSettingsWindow, normalize_start_mode
 from focuscapsule.ui.overlay_window import OverlayWindow
 
@@ -31,16 +38,23 @@ class FocusCapsuleApp:
         )
         self.main_window.set_form(self.config)
         self.main_window.protocol("WM_DELETE_WINDOW", self._shutdown)
+        self._normalize_capsule_position_on_launch()
 
         self.capsule: CapsuleWindow | None = None
         self.overlay = OverlayWindow(self.main_window, self.skip_rest)
         self.tick_job = None
+        self._last_finish_message = "本次专注已完成。"
 
     def run(self) -> None:
         self.main_window.mainloop()
 
     def start_session(self, config: SessionConfig) -> None:
-        config = dataclasses.replace(config, seed=None)
+        config = dataclasses.replace(
+            config,
+            seed=None,
+            capsule_x=self.config.capsule_x,
+            capsule_y=self.config.capsule_y,
+        )
         errors = validate_config(config)
         if errors:
             self.main_window.show_error("；".join(errors))
@@ -48,7 +62,7 @@ class FocusCapsuleApp:
 
         self.config = config
         self.current_mode = normalize_start_mode(config.start_mode)
-        save_config(config)
+        self._try_save_config(config)
 
         total_sec = config.total_minutes * 60
         min_interval_sec = max(0, math.ceil(config.interval_min_minutes * 60))
@@ -86,6 +100,8 @@ class FocusCapsuleApp:
                 self.main_window,
                 on_finish_focus=self.end_session_early,
                 on_show_main=self.show_main_window,
+                on_restart_focus=self.restart_finished_session,
+                on_position_change=self.remember_capsule_position,
             )
             self.capsule.withdraw()
         return self.capsule
@@ -105,7 +121,7 @@ class FocusCapsuleApp:
         capsule = self._ensure_capsule()
         capsule.deiconify()
         capsule.attributes("-topmost", True)
-        capsule.set_default_position()
+        capsule.set_default_position(preferred_position=self._validated_capsule_position())
         capsule.update_view(
             self.runtime.focus_remaining_sec,
             self.runtime.focus_total_sec,
@@ -215,7 +231,7 @@ class FocusCapsuleApp:
                 switch_enabled=False,
             )
         self.overlay.show(self.runtime.break_remaining_sec)
-        play_alert(self.config.sound_enabled)
+        play_double_alert(self.config.sound_enabled)
         self._schedule_tick()
 
     def exit_rest(self, _reason: str) -> None:
@@ -223,6 +239,7 @@ class FocusCapsuleApp:
         self.timer.exit_rest()
         self.runtime.state = SessionState.FOCUSING
         self._apply_display_mode()
+        play_double_alert(self.config.sound_enabled)
         if self.current_mode == "main":
             self._refresh_main_session_view(
                 self.runtime.focus_remaining_sec,
@@ -239,9 +256,21 @@ class FocusCapsuleApp:
         self._close_session("已提前结束本次专注。")
 
     def finish_session(self) -> None:
-        self._close_session("本次专注已完成。")
+        self._last_finish_message = "本次专注已完成。"
+        if self.current_mode == "capsule" and self._is_capsule_visible():
+            self.runtime.state = SessionState.FINISHED
+            if self.tick_job is not None:
+                self.main_window.after_cancel(self.tick_job)
+                self.tick_job = None
+            self.overlay.hide()
+            self.main_window.show_config_view(status_message=self._last_finish_message)
+            self.capsule.show_finished_state()
+            play_triple_alert(self.config.sound_enabled)
+            return
+        self._close_session(self._last_finish_message)
 
     def _close_session(self, message: str) -> None:
+        self._last_finish_message = message
         self.runtime.state = SessionState.FINISHED
         if self.tick_job is not None:
             self.main_window.after_cancel(self.tick_job)
@@ -253,10 +282,81 @@ class FocusCapsuleApp:
         self.main_window.deiconify()
         self.main_window.lift()
         self.main_window.focus_force()
+        play_triple_alert(self.config.sound_enabled)
 
     def show_main_window(self) -> None:
+        if self.runtime.state == SessionState.FINISHED:
+            self.current_mode = "main"
+            self._hide_capsule()
+            self.main_window.show_config_view(status_message=self._last_finish_message)
+            self.main_window.deiconify()
+            self.main_window.lift()
+            self.main_window.focus_force()
+            return
         self._show_main_mode()
         self._refresh_main_session_view(self.runtime.focus_remaining_sec)
+
+    def restart_finished_session(self) -> None:
+        if self.runtime.state != SessionState.FINISHED:
+            return
+        restart_config = dataclasses.replace(self.config, start_mode="capsule")
+        self.start_session(restart_config)
+
+    def remember_capsule_position(self, x: int, y: int) -> None:
+        if self.config.capsule_x == int(x) and self.config.capsule_y == int(y):
+            return
+        self.config = dataclasses.replace(self.config, capsule_x=int(x), capsule_y=int(y))
+        self._try_save_config(self.config)
+
+    def _saved_capsule_position(self) -> tuple[int, int] | None:
+        if self.config.capsule_x is None or self.config.capsule_y is None:
+            return None
+        return self.config.capsule_x, self.config.capsule_y
+
+    def _display_bounds(self) -> list[tuple[int, int, int, int]]:
+        return get_display_bounds(
+            self.main_window.winfo_screenwidth(),
+            self.main_window.winfo_screenheight(),
+        )
+
+    def _default_capsule_position(self) -> tuple[int, int]:
+        return compute_default_capsule_position(
+            screen_width=self.main_window.winfo_screenwidth(),
+            screen_height=self.main_window.winfo_screenheight(),
+            window_width=DEFAULT_CAPSULE_WIDTH,
+            window_height=DEFAULT_CAPSULE_HEIGHT,
+            display_bounds=self._display_bounds(),
+        )
+
+    def _validated_capsule_position(self) -> tuple[int, int]:
+        saved_position = self._saved_capsule_position()
+        if saved_position is None:
+            return self._default_capsule_position()
+        return compute_clamped_capsule_position(
+            x=saved_position[0],
+            y=saved_position[1],
+            window_width=DEFAULT_CAPSULE_WIDTH,
+            window_height=DEFAULT_CAPSULE_HEIGHT,
+            display_bounds=self._display_bounds(),
+        )
+
+    def _normalize_capsule_position_on_launch(self) -> None:
+        normalized = self._validated_capsule_position()
+        if self.config.capsule_x == normalized[0] and self.config.capsule_y == normalized[1]:
+            return
+        self.config = dataclasses.replace(
+            self.config,
+            capsule_x=normalized[0],
+            capsule_y=normalized[1],
+        )
+        self._try_save_config(self.config)
+
+    @staticmethod
+    def _try_save_config(config: SessionConfig) -> None:
+        try:
+            save_config(config)
+        except OSError:
+            return
 
     def _shutdown(self) -> None:
         if self.tick_job is not None:
