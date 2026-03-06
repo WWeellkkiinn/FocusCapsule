@@ -12,6 +12,8 @@ htmlcov/
 # Build artifacts
 build/
 dist/
+build_staging/
+dist_staging/
 *.egg-info/
 .eggs/
 

@@ -9,15 +9,13 @@ Windows 桌面随机微休息专注工具。
 - 如果缺少依赖，必须安装到 **Windows 的 `FocusCapsule` 环境**，不要安装到 WSL Python 或其他 conda 环境。
 - 如在 WSL 中触发 Windows 命令，必须调用 Windows 绝对路径（如 `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe`）。
 
-## 本次大型 Bug
+## 打包注意
 
-- **现象：** 打包后启动报错：`Can't find a usable init.tcl`，并提示 `have 8.6.14, need exactly 8.6.15`。
-- **原因：** 程序启动时加载了外部 Anaconda 的 Tcl/Tk 运行时（旧版本），与应用打包内置 Tcl 脚本版本不一致。
-- **修复方案：**
-  - 启动最早阶段清理 `TCL_LIBRARY/TK_LIBRARY/TCLLIBPATH/PYTHONHOME/PYTHONPATH`。
-  - 运行时强制绑定包内 Tcl/Tk（`scripts/pyi_rth_tkfix.py` + `focuscapsule/runtime_env.py`）。
-  - 打包脚本固定环境并隔离 PATH，只使用 `FocusCapsule` 环境。
-  - 改为 `PyInstaller --onedir`，降低 onefile 解包链带来的冲突风险。
+- 必须只通过 `scripts/build_win.bat` 打包，不要手动执行 `pyinstaller`。
+- 打包脚本会强制使用 `C:\Users\<username>\anaconda3\envs\FocusCapsule\python.exe`，并重写构建期 `PATH`，避免误用 base 环境的 Tcl/Tk DLL。
+- 历史问题的根因是：`init.tcl` 来自 `8.6.15`，但构建时错误带入了 base 环境的 `tcl86t.dll/tk86t.dll 8.6.14`，导致启动时报 `Can't find a usable init.tcl`。
+- 打包前先关闭正在运行的旧版 `FocusCapsule.exe`，否则 `dist` 目录可能被系统锁定，导致清理或重打包失败。
+- 如旧 `dist` 目录有残留占用，先以 `dist_staging/FocusCapsule` 作为最新测试产物。
 
 ## 常用命令
 

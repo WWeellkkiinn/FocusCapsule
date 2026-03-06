@@ -6,8 +6,13 @@ if not defined PYTHON_EXE (
   set "PYTHON_EXE=%DEFAULT_PYTHON_EXE%"
 )
 set "EXPECTED_PREFIX=C:\Users\asd13\anaconda3\envs\FocusCapsule"
+set "EXPECTED_LIBRARY_BIN=%EXPECTED_PREFIX%\Library\bin"
+set "EXPECTED_DLLS=%EXPECTED_PREFIX%\DLLs"
+set "EXPECTED_SCRIPTS=%EXPECTED_PREFIX%\Scripts"
 set "RUNTIME_HOOK=scripts\pyi_rth_tkfix.py"
 set "APP_ICON=assets\FocusCapsule.ico"
+set "DIST_STAGING=dist_staging"
+set "BUILD_STAGING=build_staging"
 
 if not exist "%PYTHON_EXE%" (
   echo python not found: %PYTHON_EXE%
@@ -39,20 +44,21 @@ set TK_LIBRARY=
 set TCLLIBPATH=
 set PYTHONHOME=
 set PYTHONPATH=
+set "PATH=%EXPECTED_PREFIX%;%EXPECTED_LIBRARY_BIN%;%EXPECTED_DLLS%;%EXPECTED_SCRIPTS%;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\"
 
 cd /d "%~dp0\.."
 
-if exist build rmdir /s /q build
-if exist dist rmdir /s /q dist
+if exist "%BUILD_STAGING%" rmdir /s /q "%BUILD_STAGING%"
+if exist "%DIST_STAGING%" rmdir /s /q "%DIST_STAGING%"
 if exist FocusCapsule.spec del /f /q FocusCapsule.spec
 
 "%PYTHON_EXE%" -m pip install -r requirements.txt
 if errorlevel 1 exit /b 1
 
-"%PYTHON_EXE%" -m PyInstaller --clean --noconfirm --onedir --windowed --runtime-hook "%RUNTIME_HOOK%" --icon "%APP_ICON%" --name FocusCapsule main.py
+"%PYTHON_EXE%" -m PyInstaller --clean --noconfirm --onedir --distpath "%DIST_STAGING%" --workpath "%BUILD_STAGING%" --windowed --runtime-hook "%RUNTIME_HOOK%" --icon "%APP_ICON%" --name FocusCapsule main.py
 if errorlevel 1 exit /b 1
 
 if exist FocusCapsule.spec del /f /q FocusCapsule.spec
 
-echo build done: dist\FocusCapsule\FocusCapsule.exe
+echo build done: %DIST_STAGING%\FocusCapsule\FocusCapsule.exe
 exit /b 0
