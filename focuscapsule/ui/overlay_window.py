@@ -31,7 +31,6 @@ class OverlayWindow:
         self.hide()
         self.countdown_var.set(str(seconds))
         screen_specs = self._screen_specs()
-        pixels_per_inch = float(self.master.winfo_fpixels("1i"))
 
         for width, height, x, y in screen_specs:
             win = ctk.CTkToplevel(self.master)
@@ -41,9 +40,7 @@ class OverlayWindow:
                 win.attributes("-alpha", 0.94)
             except Exception:
                 pass
-            logical_width = _scale_overlay_size(width, pixels_per_inch)
-            logical_height = _scale_overlay_size(height, pixels_per_inch)
-            win.geometry(_build_geometry(logical_width, logical_height, x, y))
+            win.geometry(_build_geometry(width, height, x, y))
             win.configure(fg_color=OVERLAY_BG_COLOR)
             win.bind("<Escape>", self._handle_escape)
             center_layer = ctk.CTkFrame(win, fg_color="transparent")
@@ -143,6 +140,11 @@ class OverlayWindow:
                 ]
 
             user32 = ctypes.windll.user32
+            try:
+                shcore = ctypes.windll.shcore
+            except Exception:
+                shcore = None
+
             monitors: list[tuple[int, int, int, int]] = []
 
             MONITORENUMPROC = ctypes.WINFUNCTYPE(
@@ -153,10 +155,33 @@ class OverlayWindow:
                 wintypes.LPARAM,
             )
 
-            def callback(_monitor, _hdc, rect_ptr, _data):
+            MDT_EFFECTIVE_DPI = 0
+
+            def callback(monitor, _hdc, rect_ptr, _data):
                 rect = rect_ptr.contents
                 left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
-                monitors.append((right - left, bottom - top, left, top))
+
+                # Retrieve per-monitor effective DPI (Windows 8.1+).
+                # Falls back to 96 (1:1 mapping) when shcore is unavailable.
+                dpi = 96.0
+                if shcore is not None:
+                    try:
+                        dpi_x = wintypes.UINT(0)
+                        dpi_y = wintypes.UINT(0)
+                        shcore.GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, ctypes.byref(dpi_x), ctypes.byref(dpi_y))
+                        if dpi_x.value > 0:
+                            dpi = float(dpi_x.value)
+                    except Exception:
+                        pass
+
+                # Convert physical pixels → logical pixels using per-monitor DPI.
+                # Both position and size must be scaled by the same factor so that
+                # overlay geometry is correct even on mixed-DPI multi-monitor setups.
+                log_w = _scale_overlay_size(right - left, dpi)
+                log_h = _scale_overlay_size(bottom - top, dpi)
+                log_x = int(round(left * 96.0 / dpi))
+                log_y = int(round(top * 96.0 / dpi))
+                monitors.append((log_w, log_h, log_x, log_y))
                 return True
 
             user32.EnumDisplayMonitors(0, 0, MONITORENUMPROC(callback), 0)
