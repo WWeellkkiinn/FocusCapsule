@@ -1,14 +1,15 @@
 @echo off
 setlocal
 
+set "DEFAULT_PYTHON_EXE=C:\Users\asd13\anaconda3\envs\FocusCapsule\python.exe"
 if not defined PYTHON_EXE (
-  set PYTHON_EXE=python
+  set "PYTHON_EXE=%DEFAULT_PYTHON_EXE%"
 )
-set RUNTIME_HOOK=scripts\pyi_rth_tkfix.py
-set APP_ICON=assets\FocusCapsule.ico
+set "EXPECTED_PREFIX=C:\Users\asd13\anaconda3\envs\FocusCapsule"
+set "RUNTIME_HOOK=scripts\pyi_rth_tkfix.py"
+set "APP_ICON=assets\FocusCapsule.ico"
 
-where "%PYTHON_EXE%" >nul 2>&1
-if errorlevel 1 (
+if not exist "%PYTHON_EXE%" (
   echo python not found: %PYTHON_EXE%
   exit /b 2
 )
@@ -19,6 +20,18 @@ if not exist "%RUNTIME_HOOK%" (
 if not exist "%APP_ICON%" (
   echo app icon not found: %APP_ICON%
   exit /b 4
+)
+
+set "PREFIX_FILE=%TEMP%\focuscapsule_python_prefix.txt"
+if exist "%PREFIX_FILE%" del /f /q "%PREFIX_FILE%"
+"%PYTHON_EXE%" -c "import pathlib, sys; pathlib.Path(r'%PREFIX_FILE%').write_text(sys.prefix, encoding='utf-8')"
+if errorlevel 1 exit /b 6
+set /p ACTUAL_PREFIX=<"%PREFIX_FILE%"
+del /f /q "%PREFIX_FILE%" >nul 2>&1
+if /i not "%ACTUAL_PREFIX%"=="%EXPECTED_PREFIX%" (
+  echo unsupported python environment: %ACTUAL_PREFIX%
+  echo expected: %EXPECTED_PREFIX%
+  exit /b 5
 )
 
 set TCL_LIBRARY=
