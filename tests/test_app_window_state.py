@@ -14,6 +14,8 @@ class MainWindowStub:
         self.focus_calls = 0
         self.after_cancel_calls: list[str] = []
         self.errors: list[str] = []
+        self.screen_width = 1920
+        self.screen_height = 1080
 
     def update_session_view(self, **kwargs) -> None:
         self.updated.append(kwargs)
@@ -42,6 +44,12 @@ class MainWindowStub:
 
     def after_cancel(self, job) -> None:
         self.after_cancel_calls.append(job)
+
+    def winfo_screenwidth(self) -> int:
+        return self.screen_width
+
+    def winfo_screenheight(self) -> int:
+        return self.screen_height
 
 
 class CapsuleStub:
@@ -284,6 +292,7 @@ def test_restart_finished_session_restarts_in_capsule_mode(monkeypatch) -> None:
 def test_show_capsule_uses_saved_position_when_available() -> None:
     app = build_app()
     app.config = SessionConfig(capsule_x=-1440, capsule_y=120)
+    app._display_bounds = lambda: [(-1600, 0, 0, 900), (0, 0, 1920, 1080)]
 
     app._show_capsule()
 
@@ -348,3 +357,29 @@ def test_close_session_plays_alert(monkeypatch) -> None:
     app._close_session("已完成")
 
     assert played == [True]
+
+
+def test_validated_capsule_position_clamps_out_of_range_saved_value() -> None:
+    app = build_app()
+    app.config = SessionConfig(capsule_x=6889, capsule_y=3845)
+    app._display_bounds = lambda: [(0, 0, 1920, 1080)]
+
+    position = app._validated_capsule_position()
+
+    assert position == (1708, 984)
+
+
+def test_normalize_capsule_position_on_launch_updates_config_and_saves(monkeypatch) -> None:
+    app = build_app()
+    app.config = SessionConfig(capsule_x=6889, capsule_y=3845)
+    saved_configs: list[SessionConfig] = []
+    app._display_bounds = lambda: [(0, 0, 1920, 1080)]
+    monkeypatch.setattr("focuscapsule.app.save_config", lambda config: saved_configs.append(config))
+
+    app._normalize_capsule_position_on_launch()
+
+    assert app.config.capsule_x == 1708
+    assert app.config.capsule_y == 984
+    assert saved_configs
+    assert saved_configs[0].capsule_x == 1708
+    assert saved_configs[0].capsule_y == 984

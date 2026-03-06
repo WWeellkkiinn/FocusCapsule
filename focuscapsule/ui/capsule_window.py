@@ -9,6 +9,7 @@ DEFAULT_CAPSULE_HEIGHT = 72
 ACTIVE_TIME_FONT = ("Consolas", 24)
 FINISHED_TIME_FONT = ("Microsoft YaHei", 13, "bold")
 FINISHED_TEXT = "专注结束，点击重启"
+SCREEN_MARGIN = 24
 
 
 def compute_bottom_right_position(
@@ -35,6 +36,95 @@ def compute_drag_position(
         window_x + current_root_x - previous_root_x,
         window_y + current_root_y - previous_root_y,
     )
+
+
+def get_display_bounds(screen_width: int, screen_height: int) -> list[tuple[int, int, int, int]]:
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class RECT(ctypes.Structure):
+                _fields_ = [
+                    ("left", wintypes.LONG),
+                    ("top", wintypes.LONG),
+                    ("right", wintypes.LONG),
+                    ("bottom", wintypes.LONG),
+                ]
+
+            monitors: list[tuple[int, int, int, int]] = []
+            user32 = ctypes.windll.user32
+            callback_type = ctypes.WINFUNCTYPE(
+                wintypes.BOOL,
+                wintypes.HMONITOR,
+                wintypes.HDC,
+                ctypes.POINTER(RECT),
+                wintypes.LPARAM,
+            )
+
+            def callback(_monitor, _hdc, rect_ptr, _data):
+                rect = rect_ptr.contents
+                monitors.append((rect.left, rect.top, rect.right, rect.bottom))
+                return True
+
+            user32.EnumDisplayMonitors(0, 0, callback_type(callback), 0)
+            if monitors:
+                return monitors
+        except Exception:
+            pass
+
+    return [(0, 0, int(screen_width), int(screen_height))]
+
+
+def compute_clamped_capsule_position(
+    x: int,
+    y: int,
+    window_width: int,
+    window_height: int,
+    display_bounds: list[tuple[int, int, int, int]],
+    margin: int = SCREEN_MARGIN,
+) -> tuple[int, int]:
+    if not display_bounds:
+        return int(x), int(y)
+
+    candidates: list[tuple[int, int, int]] = []
+    for left, top, right, bottom in display_bounds:
+        min_x = left + margin
+        min_y = top + margin
+        max_x = max(min_x, right - int(window_width) - margin)
+        max_y = max(min_y, bottom - int(window_height) - margin)
+        clamped_x = min(max(int(x), min_x), max_x)
+        clamped_y = min(max(int(y), min_y), max_y)
+        distance = abs(clamped_x - int(x)) + abs(clamped_y - int(y))
+        candidates.append((distance, clamped_x, clamped_y))
+
+    _, best_x, best_y = min(candidates, key=lambda item: item[0])
+    return best_x, best_y
+
+
+def compute_default_capsule_position(
+    screen_width: int,
+    screen_height: int,
+    window_width: int,
+    window_height: int,
+    display_bounds: list[tuple[int, int, int, int]],
+    margin: int = SCREEN_MARGIN,
+) -> tuple[int, int]:
+    primary = next(
+        (bounds for bounds in display_bounds if bounds[0] <= 0 < bounds[2] and bounds[1] <= 0 < bounds[3]),
+        None,
+    )
+    if primary is None:
+        return compute_bottom_right_position(screen_width, screen_height, window_width, window_height, margin)
+    left, top, right, bottom = primary
+    x, y = compute_bottom_right_position(
+        right - left,
+        bottom - top,
+        window_width,
+        window_height,
+        margin,
+    )
+    return x + left, y + top
 
 
 class CapsuleWindow(ctk.CTkToplevel):
@@ -190,11 +280,13 @@ class CapsuleWindow(ctk.CTkToplevel):
             height = self.winfo_height()
             screen_width = self.winfo_screenwidth()
             screen_height = self.winfo_screenheight()
-            x, y = compute_bottom_right_position(
+            display_bounds = get_display_bounds(screen_width, screen_height)
+            x, y = compute_default_capsule_position(
                 screen_width=screen_width,
                 screen_height=screen_height,
                 window_width=width,
                 window_height=height,
+                display_bounds=display_bounds,
                 margin=margin,
             )
         self.geometry(f"+{x}+{y}")
