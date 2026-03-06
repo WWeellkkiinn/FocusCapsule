@@ -251,6 +251,16 @@ def test_app_capsule_position_paths_cover_show_save_validate_and_launch_normaliz
     assert saved_configs[-1].capsule_x == -1330
 
 
+def test_app_position_save_tolerates_oserror(monkeypatch) -> None:
+    app = build_app()
+    monkeypatch.setattr("focuscapsule.app.save_config", lambda config: (_ for _ in ()).throw(OSError("disk")))
+
+    app.remember_capsule_position(120, 180)
+
+    assert app.config.capsule_x == 120
+    assert app.config.capsule_y == 180
+
+
 def test_app_rest_transition_paths_cover_overlay_and_sound(monkeypatch) -> None:
     enter_app = build_app()
     enter_alerts: list[bool] = []

@@ -51,4 +51,7 @@ def save_config(config: SessionConfig) -> None:
 def _parse_optional_int(value) -> int | None:
     if value is None:
         return None
-    return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

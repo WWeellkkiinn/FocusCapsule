@@ -214,11 +214,13 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._drag_root_y = event.y_root
         self._drag_moved = True
         self._position_initialized = True
-        if callable(self._on_position_change):
-            self._on_position_change(x, y)
 
     def _on_left_release(self, _event) -> str | None:
-        if self._drag_moved or not self._restart_enabled:
+        if self._drag_moved:
+            if callable(self._on_position_change):
+                self._on_position_change(self.winfo_x(), self.winfo_y())
+            return None
+        if not self._restart_enabled:
             return None
         self._cancel_pending_click()
         self._pending_click_job = self.after(220, self._restart_focus)

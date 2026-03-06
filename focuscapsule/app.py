@@ -62,7 +62,7 @@ class FocusCapsuleApp:
 
         self.config = config
         self.current_mode = normalize_start_mode(config.start_mode)
-        save_config(config)
+        self._try_save_config(config)
 
         total_sec = config.total_minutes * 60
         min_interval_sec = max(0, math.ceil(config.interval_min_minutes * 60))
@@ -306,7 +306,7 @@ class FocusCapsuleApp:
         if self.config.capsule_x == int(x) and self.config.capsule_y == int(y):
             return
         self.config = dataclasses.replace(self.config, capsule_x=int(x), capsule_y=int(y))
-        save_config(self.config)
+        self._try_save_config(self.config)
 
     def _saved_capsule_position(self) -> tuple[int, int] | None:
         if self.config.capsule_x is None or self.config.capsule_y is None:
@@ -349,7 +349,14 @@ class FocusCapsuleApp:
             capsule_x=normalized[0],
             capsule_y=normalized[1],
         )
-        save_config(self.config)
+        self._try_save_config(self.config)
+
+    @staticmethod
+    def _try_save_config(config: SessionConfig) -> None:
+        try:
+            save_config(config)
+        except OSError:
+            return
 
     def _shutdown(self) -> None:
         if self.tick_job is not None:
