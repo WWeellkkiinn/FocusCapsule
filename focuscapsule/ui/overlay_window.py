@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import customtkinter as ctk
 
-OVERLAY_BG_COLOR = "#050816"
+OVERLAY_BG_COLOR = "#000000"
 OVERLAY_TITLE_COLOR = "#F8FAFC"
 OVERLAY_COUNTDOWN_COLOR = "#FFFFFF"
 OVERLAY_HINT_COLOR = "#DCE7F5"
+OVERLAY_ALPHA = 0.80
 
 
 def _build_geometry(width: int, height: int, x: int, y: int) -> str:
@@ -37,7 +38,7 @@ class OverlayWindow:
             win.overrideredirect(True)
             win.attributes("-topmost", True)
             try:
-                win.attributes("-alpha", 0.94)
+                win.attributes("-alpha", OVERLAY_ALPHA)
             except Exception:
                 pass
             win.geometry(_build_geometry(width, height, x, y))
