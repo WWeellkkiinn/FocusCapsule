@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import customtkinter as ctk
-from tkinter import messagebox
 
 from focuscapsule.audio import play_alert
 from focuscapsule.config import load_config, save_config
@@ -40,6 +39,15 @@ class FocusCapsuleApp:
         self.main_window.mainloop()
 
     def start_session(self, config: SessionConfig) -> None:
+        config = SessionConfig(
+            total_minutes=config.total_minutes,
+            interval_min_minutes=config.interval_min_minutes,
+            interval_max_minutes=config.interval_max_minutes,
+            break_seconds=config.break_seconds,
+            sound_enabled=config.sound_enabled,
+            seed=None,
+            start_mode=config.start_mode,
+        )
         errors = validate_config(config)
         if errors:
             self.main_window.show_error("；".join(errors))
@@ -252,7 +260,6 @@ class FocusCapsuleApp:
         self.main_window.deiconify()
         self.main_window.lift()
         self.main_window.focus_force()
-        messagebox.showinfo("FocusCapsule", message)
 
     def show_main_window(self) -> None:
         self._show_main_mode()
