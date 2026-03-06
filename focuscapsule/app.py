@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import math
 import customtkinter as ctk
 
@@ -39,15 +40,7 @@ class FocusCapsuleApp:
         self.main_window.mainloop()
 
     def start_session(self, config: SessionConfig) -> None:
-        config = SessionConfig(
-            total_minutes=config.total_minutes,
-            interval_min_minutes=config.interval_min_minutes,
-            interval_max_minutes=config.interval_max_minutes,
-            break_seconds=config.break_seconds,
-            sound_enabled=config.sound_enabled,
-            seed=None,
-            start_mode=config.start_mode,
-        )
+        config = dataclasses.replace(config, seed=None)
         errors = validate_config(config)
         if errors:
             self.main_window.show_error("；".join(errors))
@@ -256,7 +249,7 @@ class FocusCapsuleApp:
         self.overlay.hide()
         self._hide_capsule()
         self.current_mode = normalize_start_mode(self.config.start_mode)
-        self.main_window.show_config_view()
+        self.main_window.show_config_view(status_message=message)
         self.main_window.deiconify()
         self.main_window.lift()
         self.main_window.focus_force()
