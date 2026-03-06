@@ -194,5 +194,5 @@ def test_close_session_returns_to_config_view_and_clears_overlays() -> None:
     assert app.overlay.hide_calls == 1
     assert app.capsule.state() == "withdrawn"
     assert app.main_window.config_view_calls == 1
-    assert app.main_window.config_status_messages == ["准备开始专注"]
+    assert app.main_window.config_status_messages == ["已完成"]
     assert app.main_window.after_cancel_calls == ["job-1"]
