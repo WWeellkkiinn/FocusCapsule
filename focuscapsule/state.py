@@ -23,6 +23,7 @@ class SessionConfig:
     break_seconds: int = 10
     sound_enabled: bool = True
     seed: int | None = None
+    start_mode: str = "main"
 
 
 @dataclass(slots=True)

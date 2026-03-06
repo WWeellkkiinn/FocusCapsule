@@ -6,6 +6,7 @@ Windows 桌面随机微休息专注工具。
 
 - 运行与打包必须使用 **Windows 的 Anaconda Python**（建议 `C:\Users\<username>\anaconda3\envs\FocusCapsule\python.exe`）。
 - 不使用 WSL 内的 Python 解释器运行本项目（包括 `~/anaconda3/bin/python`）。
+- 如果缺少依赖，必须安装到 **Windows 的 `FocusCapsule` 环境**，不要安装到 WSL Python 或其他 conda 环境。
 - 如在 WSL 中触发 Windows 命令，必须调用 Windows 绝对路径（如 `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe`）。
 
 ## 本次大型 Bug
@@ -24,6 +25,12 @@ Windows 桌面随机微休息专注工具。
 ```bat
 cd /d C:\dev\FocusCapsule
 C:\Users\<username>\anaconda3\envs\FocusCapsule\python.exe main.py
+```
+
+### 安装依赖
+```bat
+cd /d C:\dev\FocusCapsule
+C:\Users\<username>\anaconda3\envs\FocusCapsule\python.exe -m pip install -r requirements.txt
 ```
 
 ### 打包

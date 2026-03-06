@@ -1,0 +1,177 @@
+from focuscapsule.app import FocusCapsuleApp
+from focuscapsule.state import SessionConfig, SessionRuntime, SessionState
+
+
+class MainWindowStub:
+    def __init__(self) -> None:
+        self.updated: list[dict] = []
+        self.session_view_calls = 0
+        self.config_view_calls = 0
+        self.deiconify_calls = 0
+        self.withdraw_calls = 0
+        self.lift_calls = 0
+        self.focus_calls = 0
+        self.after_cancel_calls: list[str] = []
+        self.errors: list[str] = []
+
+    def update_session_view(self, **kwargs) -> None:
+        self.updated.append(kwargs)
+
+    def show_session_view(self) -> None:
+        self.session_view_calls += 1
+
+    def show_config_view(self) -> None:
+        self.config_view_calls += 1
+
+    def show_error(self, text: str) -> None:
+        self.errors.append(text)
+
+    def deiconify(self) -> None:
+        self.deiconify_calls += 1
+
+    def withdraw(self) -> None:
+        self.withdraw_calls += 1
+
+    def lift(self) -> None:
+        self.lift_calls += 1
+
+    def focus_force(self) -> None:
+        self.focus_calls += 1
+
+    def after_cancel(self, job) -> None:
+        self.after_cancel_calls.append(job)
+
+
+class CapsuleStub:
+    def __init__(self, state: str = "withdrawn") -> None:
+        self._state = state
+        self.withdraw_calls = 0
+        self.deiconify_calls = 0
+        self.topmost_values: list[tuple[str, bool]] = []
+        self.default_position_calls = 0
+        self.updated: list[tuple[int, int]] = []
+
+    def winfo_exists(self) -> bool:
+        return True
+
+    def state(self) -> str:
+        return self._state
+
+    def withdraw(self) -> None:
+        self._state = "withdrawn"
+        self.withdraw_calls += 1
+
+    def deiconify(self) -> None:
+        self._state = "normal"
+        self.deiconify_calls += 1
+
+    def attributes(self, key: str, value: bool) -> None:
+        self.topmost_values.append((key, value))
+
+    def set_default_position(self) -> None:
+        self.default_position_calls += 1
+
+    def update_view(self, remaining_sec: int, total_sec: int) -> None:
+        self.updated.append((remaining_sec, total_sec))
+
+
+class OverlayStub:
+    def __init__(self) -> None:
+        self.hide_calls = 0
+
+    def hide(self) -> None:
+        self.hide_calls += 1
+
+
+class TimerStub:
+    def __init__(self) -> None:
+        self.started = False
+
+    def start(self) -> None:
+        self.started = True
+
+
+def build_app(state: SessionState = SessionState.FOCUSING, capsule_state: str = "withdrawn") -> FocusCapsuleApp:
+    app = FocusCapsuleApp.__new__(FocusCapsuleApp)
+    app.config = SessionConfig()
+    app.runtime = SessionRuntime(
+        state=state,
+        focus_total_sec=1500,
+        focus_remaining_sec=1200,
+        break_remaining_sec=10,
+    )
+    app.main_window = MainWindowStub()
+    app.capsule = CapsuleStub(capsule_state)
+    app.overlay = OverlayStub()
+    app.tick_job = "job-1"
+    app.current_mode = "main"
+    app.timer = TimerStub()
+    return app
+
+
+def test_switch_to_capsule_mode_switches_from_main_to_capsule() -> None:
+    app = build_app()
+
+    app.switch_to_capsule_mode()
+    assert app.current_mode == "capsule"
+    assert app.main_window.withdraw_calls == 1
+    assert app.capsule.state() == "normal"
+
+
+def test_show_main_window_hides_capsule_and_restores_main_only() -> None:
+    app = build_app(state=SessionState.FOCUSING, capsule_state="normal")
+    app.current_mode = "capsule"
+
+    app.show_main_window()
+
+    assert app.current_mode == "main"
+    assert app.capsule.state() == "withdrawn"
+    assert app.main_window.session_view_calls == 1
+    assert app.main_window.deiconify_calls == 1
+
+
+def test_switch_to_capsule_mode_keeps_capsule_state_when_already_in_capsule() -> None:
+    app = build_app(state=SessionState.FOCUSING, capsule_state="normal")
+    app.current_mode = "capsule"
+
+    app.switch_to_capsule_mode()
+
+    assert app.current_mode == "capsule"
+    assert app.main_window.withdraw_calls == 0
+    assert app.capsule.state() == "normal"
+
+
+def test_start_session_uses_selected_capsule_mode(monkeypatch) -> None:
+    app = build_app(state=SessionState.IDLE)
+    app.main_window = MainWindowStub()
+    app.timer = TimerStub()
+    calls: list[str] = []
+    monkeypatch.setattr("focuscapsule.app.save_config", lambda config: None)
+    monkeypatch.setattr("focuscapsule.app.build_trigger_points", lambda **kwargs: [])
+    monkeypatch.setattr("focuscapsule.app.MonotonicFocusTimer", lambda runtime: app.timer)
+    monkeypatch.setattr(app, "_ensure_capsule", lambda: app.capsule)
+    monkeypatch.setattr(app, "_show_capsule_mode", lambda: calls.append("capsule"))
+    monkeypatch.setattr(app, "_show_main_mode", lambda: calls.append("main"))
+    monkeypatch.setattr(app, "_schedule_tick", lambda: calls.append("tick"))
+
+    config = SessionConfig(start_mode="capsule")
+    app.start_session(config)
+
+    assert app.current_mode == "capsule"
+    assert app.timer.started is True
+    assert calls == ["capsule", "tick"]
+
+
+def test_close_session_returns_to_config_view_and_clears_overlays(monkeypatch) -> None:
+    app = build_app(capsule_state="normal")
+    messages: list[tuple[str, str]] = []
+    monkeypatch.setattr("focuscapsule.app.messagebox.showinfo", lambda title, text: messages.append((title, text)))
+
+    app._close_session("已完成")
+
+    assert app.runtime.state == SessionState.FINISHED
+    assert app.overlay.hide_calls == 1
+    assert app.capsule.state() == "withdrawn"
+    assert app.main_window.config_view_calls == 1
+    assert app.main_window.after_cancel_calls == ["job-1"]
+    assert messages == [("FocusCapsule", "已完成")]
