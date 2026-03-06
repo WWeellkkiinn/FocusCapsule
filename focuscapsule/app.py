@@ -4,7 +4,7 @@ import dataclasses
 import math
 import customtkinter as ctk
 
-from focuscapsule.audio import play_alert
+from focuscapsule.audio import play_double_alert, play_triple_alert
 from focuscapsule.config import load_config, save_config
 from focuscapsule.scheduler import build_trigger_points
 from focuscapsule.state import SessionConfig, SessionRuntime, SessionState, validate_config
@@ -223,7 +223,7 @@ class FocusCapsuleApp:
                 switch_enabled=False,
             )
         self.overlay.show(self.runtime.break_remaining_sec)
-        play_alert(self.config.sound_enabled)
+        play_double_alert(self.config.sound_enabled)
         self._schedule_tick()
 
     def exit_rest(self, _reason: str) -> None:
@@ -231,6 +231,7 @@ class FocusCapsuleApp:
         self.timer.exit_rest()
         self.runtime.state = SessionState.FOCUSING
         self._apply_display_mode()
+        play_double_alert(self.config.sound_enabled)
         if self.current_mode == "main":
             self._refresh_main_session_view(
                 self.runtime.focus_remaining_sec,
@@ -256,6 +257,7 @@ class FocusCapsuleApp:
             self.overlay.hide()
             self.main_window.show_config_view(status_message=self._last_finish_message)
             self.capsule.show_finished_state()
+            play_triple_alert(self.config.sound_enabled)
             return
         self._close_session(self._last_finish_message)
 
@@ -272,6 +274,7 @@ class FocusCapsuleApp:
         self.main_window.deiconify()
         self.main_window.lift()
         self.main_window.focus_force()
+        play_triple_alert(self.config.sound_enabled)
 
     def show_main_window(self) -> None:
         if self.runtime.state == SessionState.FINISHED:

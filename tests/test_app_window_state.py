@@ -86,17 +86,29 @@ class CapsuleStub:
 class OverlayStub:
     def __init__(self) -> None:
         self.hide_calls = 0
+        self.show_calls: list[int] = []
 
     def hide(self) -> None:
         self.hide_calls += 1
+
+    def show(self, seconds: int) -> None:
+        self.show_calls.append(seconds)
 
 
 class TimerStub:
     def __init__(self) -> None:
         self.started = False
+        self.enter_rest_calls = 0
+        self.exit_rest_calls = 0
 
     def start(self) -> None:
         self.started = True
+
+    def enter_rest(self) -> None:
+        self.enter_rest_calls += 1
+
+    def exit_rest(self) -> None:
+        self.exit_rest_calls += 1
 
 
 def build_app(state: SessionState = SessionState.FOCUSING, capsule_state: str = "withdrawn") -> FocusCapsuleApp:
@@ -291,3 +303,48 @@ def test_remember_capsule_position_updates_config_and_saves(monkeypatch) -> None
     assert saved_configs
     assert saved_configs[0].capsule_x == -1330
     assert saved_configs[0].capsule_y == 96
+
+
+def test_enter_rest_plays_alert(monkeypatch) -> None:
+    app = build_app()
+    played: list[bool] = []
+    monkeypatch.setattr("focuscapsule.app.play_double_alert", lambda enabled: played.append(enabled))
+    monkeypatch.setattr(app, "_schedule_tick", lambda: None)
+
+    app.enter_rest()
+
+    assert played == [True]
+
+
+def test_exit_rest_plays_alert(monkeypatch) -> None:
+    app = build_app(state=SessionState.RESTING)
+    played: list[bool] = []
+    app.timer = type("RestTimerStub", (), {"exit_rest": lambda self: None})()
+    monkeypatch.setattr("focuscapsule.app.play_double_alert", lambda enabled: played.append(enabled))
+    monkeypatch.setattr(app, "_apply_display_mode", lambda: None)
+    monkeypatch.setattr(app, "_schedule_tick", lambda: None)
+
+    app.exit_rest("timeout")
+
+    assert played == [True]
+
+
+def test_finish_session_in_capsule_mode_plays_alert(monkeypatch) -> None:
+    app = build_app(capsule_state="normal")
+    app.current_mode = "capsule"
+    played: list[bool] = []
+    monkeypatch.setattr("focuscapsule.app.play_triple_alert", lambda enabled: played.append(enabled))
+
+    app.finish_session()
+
+    assert played == [True]
+
+
+def test_close_session_plays_alert(monkeypatch) -> None:
+    app = build_app(capsule_state="normal")
+    played: list[bool] = []
+    monkeypatch.setattr("focuscapsule.app.play_triple_alert", lambda enabled: played.append(enabled))
+
+    app._close_session("已完成")
+
+    assert played == [True]
