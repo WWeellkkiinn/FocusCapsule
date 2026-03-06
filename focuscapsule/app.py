@@ -71,7 +71,7 @@ class FocusCapsuleApp:
         if self.capsule is None or not self.capsule.winfo_exists():
             self.capsule = CapsuleWindow(
                 self.main_window,
-                on_finish_focus=self.finish_session,
+                on_finish_focus=self.end_session_early,
                 on_show_main=self.show_main_window,
             )
         self.capsule.deiconify()
@@ -142,7 +142,13 @@ class FocusCapsuleApp:
         if self.runtime.state == SessionState.RESTING:
             self.exit_rest("esc")
 
+    def end_session_early(self) -> None:
+        self._close_session("已提前结束本次专注。")
+
     def finish_session(self) -> None:
+        self._close_session("本次专注已完成。")
+
+    def _close_session(self, message: str) -> None:
         self.runtime.state = SessionState.FINISHED
         if self.tick_job is not None:
             self.main_window.after_cancel(self.tick_job)
@@ -153,7 +159,7 @@ class FocusCapsuleApp:
         self.main_window.deiconify()
         self.main_window.lift()
         self.main_window.focus_force()
-        messagebox.showinfo("FocusCapsule", "本次专注已完成。")
+        messagebox.showinfo("FocusCapsule", message)
 
     def show_main_window(self) -> None:
         self.main_window.deiconify()
