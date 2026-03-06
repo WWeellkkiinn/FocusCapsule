@@ -251,7 +251,7 @@ class MainSettingsWindow(ctk.CTk):
         for idx, spec in enumerate(button_specs):
             pady = (12, 8) if idx == 0 else (0, 8)
             if idx == len(button_specs) - 1:
-                pady = (pady[0], 12 if error_var else 12)
+                pady = (pady[0], 12)
             button_kwargs = {
                 "text": spec["text"],
                 "command": spec["command"],
@@ -390,7 +390,7 @@ class MainSettingsWindow(ctk.CTk):
         self.error_var.set(text)
 
     def show_config_view(self, status_message: str = "准备开始专注") -> None:
-        self.session_hint_var.set("当前正在专注，请保持节奏。")
+        self.session_hint_var.set(status_message)
         self._update_preview_countdown()
         self._show_view(self.config_frame)
 
