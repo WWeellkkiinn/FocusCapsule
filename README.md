@@ -15,7 +15,6 @@ Windows 桌面随机微休息专注工具。
 - 打包脚本会强制使用 `C:\Users\<username>\anaconda3\envs\FocusCapsule\python.exe`，并重写构建期 `PATH`，避免误用 base 环境的 Tcl/Tk DLL。
 - 历史问题的根因是：`init.tcl` 来自 `8.6.15`，但构建时错误带入了 base 环境的 `tcl86t.dll/tk86t.dll 8.6.14`，导致启动时报 `Can't find a usable init.tcl`。
 - 打包前先关闭正在运行的旧版 `FocusCapsule.exe`，否则 `dist` 目录可能被系统锁定，导致清理或重打包失败。
-- 如旧 `dist` 目录有残留占用，先以 `dist_staging/FocusCapsule` 作为最新测试产物。
 
 ## 常用命令
 

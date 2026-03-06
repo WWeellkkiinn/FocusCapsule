@@ -2,6 +2,19 @@ from focuscapsule.app import FocusCapsuleApp
 from focuscapsule.state import SessionConfig, SessionRuntime, SessionState
 
 
+class VirtualDesktopStub:
+    def __init__(self) -> None:
+        self.synced_hwnds: list[int] = []
+        self.close_calls = 0
+
+    def sync_window(self, hwnd: int) -> bool:
+        self.synced_hwnds.append(hwnd)
+        return True
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+
 class MainWindowStub:
     def __init__(self) -> None:
         self.updated: list[dict] = []
@@ -62,6 +75,7 @@ class CapsuleStub:
         self.default_position_args: list[tuple[int, int] | None] = []
         self.updated: list[tuple[int, int]] = []
         self.finished_state_calls = 0
+        self.hwnd = 9527
 
     def winfo_exists(self) -> bool:
         return True
@@ -89,6 +103,9 @@ class CapsuleStub:
 
     def show_finished_state(self) -> None:
         self.finished_state_calls += 1
+
+    def native_handle(self) -> int:
+        return self.hwnd
 
 
 class OverlayStub:
@@ -135,6 +152,8 @@ def build_app(state: SessionState = SessionState.FOCUSING, capsule_state: str = 
     app.current_mode = "main"
     app.timer = TimerStub()
     app._last_finish_message = "本次专注已完成。"
+    app._virtual_desktop = VirtualDesktopStub()
+    app._last_virtual_desktop_sync_at = 0.0
     return app
 
 
@@ -242,8 +261,10 @@ def test_app_capsule_position_paths_cover_show_save_validate_and_launch_normaliz
     assert app.config.capsule_y == 984
 
     app.config = SessionConfig(capsule_x=-1440, capsule_y=120)
+    app.current_mode = "capsule"
     app._show_capsule()
     assert app.capsule.default_position_args[-1] == (-1440, 120)
+    assert app._virtual_desktop.synced_hwnds == [9527]
 
     app.remember_capsule_position(-1330, 96)
     assert app.config.capsule_x == -1330
@@ -259,6 +280,36 @@ def test_app_position_save_tolerates_oserror(monkeypatch) -> None:
 
     assert app.config.capsule_x == 120
     assert app.config.capsule_y == 180
+
+
+def test_app_virtual_desktop_sync_is_rate_limited_and_forceable(monkeypatch) -> None:
+    app = build_app(capsule_state="normal")
+    app.current_mode = "capsule"
+    times = iter([10.0, 10.2, 11.5, 11.7])
+    monkeypatch.setattr("focuscapsule.app.time.monotonic", lambda: next(times))
+
+    app._sync_capsule_virtual_desktop()
+    app._sync_capsule_virtual_desktop()
+    app._sync_capsule_virtual_desktop()
+    app._sync_capsule_virtual_desktop(force=True)
+
+    assert app._virtual_desktop.synced_hwnds == [9527, 9527, 9527]
+
+
+def test_app_shutdown_releases_virtual_desktop_controller() -> None:
+    app = build_app(capsule_state="normal")
+    destroyed = {"called": 0}
+
+    def destroy_capsule() -> None:
+        destroyed["called"] += 1
+
+    app.capsule.destroy = destroy_capsule
+    app.main_window.destroy = lambda: None
+
+    app._shutdown()
+
+    assert destroyed["called"] == 1
+    assert app._virtual_desktop.close_calls == 1
 
 
 def test_app_rest_transition_paths_cover_overlay_and_sound(monkeypatch) -> None:

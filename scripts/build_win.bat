@@ -11,8 +11,8 @@ set "EXPECTED_DLLS=%EXPECTED_PREFIX%\DLLs"
 set "EXPECTED_SCRIPTS=%EXPECTED_PREFIX%\Scripts"
 set "RUNTIME_HOOK=scripts\pyi_rth_tkfix.py"
 set "APP_ICON=assets\FocusCapsule.ico"
-set "DIST_STAGING=dist_staging"
-set "BUILD_STAGING=build_staging"
+set "DIST_DIR=dist"
+set "BUILD_DIR=build"
 
 if not exist "%PYTHON_EXE%" (
   echo python not found: %PYTHON_EXE%
@@ -48,17 +48,17 @@ set "PATH=%EXPECTED_PREFIX%;%EXPECTED_LIBRARY_BIN%;%EXPECTED_DLLS%;%EXPECTED_SCR
 
 cd /d "%~dp0\.."
 
-if exist "%BUILD_STAGING%" rmdir /s /q "%BUILD_STAGING%"
-if exist "%DIST_STAGING%" rmdir /s /q "%DIST_STAGING%"
+if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
+if exist "%DIST_DIR%" rmdir /s /q "%DIST_DIR%"
 if exist FocusCapsule.spec del /f /q FocusCapsule.spec
 
 "%PYTHON_EXE%" -m pip install -r requirements.txt
 if errorlevel 1 exit /b 1
 
-"%PYTHON_EXE%" -m PyInstaller --clean --noconfirm --onedir --distpath "%DIST_STAGING%" --workpath "%BUILD_STAGING%" --windowed --runtime-hook "%RUNTIME_HOOK%" --icon "%APP_ICON%" --name FocusCapsule main.py
+"%PYTHON_EXE%" -m PyInstaller --clean --noconfirm --onedir --distpath "%DIST_DIR%" --workpath "%BUILD_DIR%" --windowed --runtime-hook "%RUNTIME_HOOK%" --icon "%APP_ICON%" --name FocusCapsule main.py
 if errorlevel 1 exit /b 1
 
 if exist FocusCapsule.spec del /f /q FocusCapsule.spec
 
-echo build done: %DIST_STAGING%\FocusCapsule\FocusCapsule.exe
+echo build done: %DIST_DIR%\FocusCapsule\FocusCapsule.exe
 exit /b 0

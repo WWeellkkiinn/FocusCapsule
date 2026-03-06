@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import time
 import customtkinter as ctk
 
 from focuscapsule.audio import play_double_alert, play_triple_alert
@@ -19,6 +20,9 @@ from focuscapsule.ui.capsule_window import (
 )
 from focuscapsule.ui.main_window import MainSettingsWindow, normalize_start_mode
 from focuscapsule.ui.overlay_window import OverlayWindow
+from focuscapsule.virtual_desktop import VirtualDesktopController
+
+VIRTUAL_DESKTOP_SYNC_INTERVAL_SEC = 1.0
 
 
 class FocusCapsuleApp:
@@ -44,6 +48,8 @@ class FocusCapsuleApp:
         self.overlay = OverlayWindow(self.main_window, self.skip_rest)
         self.tick_job = None
         self._last_finish_message = "本次专注已完成。"
+        self._virtual_desktop = VirtualDesktopController()
+        self._last_virtual_desktop_sync_at = 0.0
 
     def run(self) -> None:
         self.main_window.mainloop()
@@ -122,6 +128,7 @@ class FocusCapsuleApp:
         capsule.deiconify()
         capsule.attributes("-topmost", True)
         capsule.set_default_position(preferred_position=self._validated_capsule_position())
+        self._sync_capsule_virtual_desktop(force=True)
         capsule.update_view(
             self.runtime.focus_remaining_sec,
             self.runtime.focus_total_sec,
@@ -152,6 +159,7 @@ class FocusCapsuleApp:
         self.tick_job = self.main_window.after(200, self._tick)
 
     def _tick(self) -> None:
+        self._sync_capsule_virtual_desktop()
         if self.runtime.state == SessionState.FOCUSING:
             remaining = self.timer.compute_focus_remaining()
             self.runtime.focus_remaining_sec = remaining
@@ -358,6 +366,18 @@ class FocusCapsuleApp:
         except OSError:
             return
 
+    def _sync_capsule_virtual_desktop(self, force: bool = False) -> None:
+        if self.current_mode != "capsule" or not self._is_capsule_visible():
+            return
+        now = time.monotonic()
+        if not force and now - self._last_virtual_desktop_sync_at < VIRTUAL_DESKTOP_SYNC_INTERVAL_SEC:
+            return
+        self._last_virtual_desktop_sync_at = now
+        try:
+            self._virtual_desktop.sync_window(self.capsule.native_handle())
+        except Exception:
+            return
+
     def _shutdown(self) -> None:
         if self.tick_job is not None:
             self.main_window.after_cancel(self.tick_job)
@@ -365,6 +385,7 @@ class FocusCapsuleApp:
         self.overlay.hide()
         if self.capsule and self.capsule.winfo_exists():
             self.capsule.destroy()
+        self._virtual_desktop.close()
         self.main_window.destroy()
 
 

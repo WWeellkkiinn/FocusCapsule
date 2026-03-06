@@ -185,6 +185,9 @@ class CapsuleWindow(ctk.CTkToplevel):
 
         self._bind_pointer_events(frame)
 
+    def native_handle(self) -> int:
+        return int(self.winfo_id())
+
     def _bind_pointer_events(self, widget) -> None:
         widget.bind("<ButtonPress-1>", self._start_drag)
         widget.bind("<B1-Motion>", self._on_drag)
