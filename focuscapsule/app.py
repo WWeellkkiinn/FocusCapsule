@@ -10,7 +10,7 @@ from focuscapsule.scheduler import build_trigger_points
 from focuscapsule.state import SessionConfig, SessionRuntime, SessionState, validate_config
 from focuscapsule.timer import MonotonicFocusTimer
 from focuscapsule.ui.capsule_window import CapsuleWindow
-from focuscapsule.ui.main_window import MainSettingsWindow
+from focuscapsule.ui.main_window import MainSettingsWindow, normalize_start_mode
 from focuscapsule.ui.overlay_window import OverlayWindow
 
 
@@ -22,8 +22,13 @@ class FocusCapsuleApp:
         self.config = load_config()
         self.runtime = SessionRuntime()
         self.timer = MonotonicFocusTimer(self.runtime)
+        self.current_mode = normalize_start_mode(self.config.start_mode)
 
-        self.main_window = MainSettingsWindow(self.start_session)
+        self.main_window = MainSettingsWindow(
+            self.start_session,
+            on_switch_to_capsule=self.switch_to_capsule_mode,
+            on_end_session=self.end_session_early,
+        )
         self.main_window.set_form(self.config)
         self.main_window.protocol("WM_DELETE_WINDOW", self._shutdown)
 
@@ -41,12 +46,12 @@ class FocusCapsuleApp:
             return
 
         self.config = config
+        self.current_mode = normalize_start_mode(config.start_mode)
         save_config(config)
 
         total_sec = config.total_minutes * 60
         min_interval_sec = max(0, math.ceil(config.interval_min_minutes * 60))
         max_interval_sec = max(0, math.floor(config.interval_max_minutes * 60))
-        # Ensure that rounding does not produce an inverted interval range
         max_interval_sec = max(max_interval_sec, min_interval_sec)
         trigger_points = build_trigger_points(
             total_sec=total_sec,
@@ -67,18 +72,60 @@ class FocusCapsuleApp:
         self.timer = MonotonicFocusTimer(self.runtime)
         self.timer.start()
 
-        self.main_window.withdraw()
+        self._ensure_capsule()
+        self._apply_display_mode()
+        self._schedule_tick()
+
+    def _ensure_capsule(self) -> CapsuleWindow:
         if self.capsule is None or not self.capsule.winfo_exists():
             self.capsule = CapsuleWindow(
                 self.main_window,
                 on_finish_focus=self.end_session_early,
                 on_show_main=self.show_main_window,
             )
-        self.capsule.deiconify()
-        self.capsule.set_default_position()
-        self.capsule.update_view(total_sec, total_sec)
+            self.capsule.withdraw()
+        return self.capsule
 
-        self._schedule_tick()
+    def _is_capsule_visible(self) -> bool:
+        return bool(
+            self.capsule
+            and self.capsule.winfo_exists()
+            and self.capsule.state() != "withdrawn"
+        )
+
+    def _hide_capsule(self) -> None:
+        if self.capsule and self.capsule.winfo_exists():
+            self.capsule.withdraw()
+
+    def _show_capsule(self) -> None:
+        capsule = self._ensure_capsule()
+        capsule.deiconify()
+        capsule.attributes("-topmost", True)
+        capsule.set_default_position()
+        capsule.update_view(
+            self.runtime.focus_remaining_sec,
+            self.runtime.focus_total_sec,
+        )
+
+    def _show_main_mode(self) -> None:
+        self.current_mode = "main"
+        self._hide_capsule()
+        self.main_window.show_session_view()
+        self._refresh_main_session_view(self.runtime.focus_remaining_sec)
+        self.main_window.deiconify()
+        self.main_window.lift()
+        self.main_window.focus_force()
+
+    def _show_capsule_mode(self) -> None:
+        self.current_mode = "capsule"
+        self.main_window.withdraw()
+        self._show_capsule()
+
+    def _apply_display_mode(self) -> None:
+        if self.current_mode == "capsule":
+            self._show_capsule_mode()
+        else:
+            self._show_main_mode()
 
     def _schedule_tick(self) -> None:
         if self.tick_job is not None:
@@ -88,8 +135,8 @@ class FocusCapsuleApp:
     def _tick(self) -> None:
         if self.runtime.state == SessionState.FOCUSING:
             remaining = self.timer.compute_focus_remaining()
-            if self.capsule and self.capsule.winfo_exists():
-                self.capsule.update_view(remaining, self.runtime.focus_total_sec)
+            self.runtime.focus_remaining_sec = remaining
+            self._refresh_focus_views(remaining)
 
             if remaining in self.runtime.active_trigger_points:
                 self.runtime.active_trigger_points.remove(remaining)
@@ -102,8 +149,13 @@ class FocusCapsuleApp:
 
         elif self.runtime.state == SessionState.RESTING:
             focus_remaining = self.timer.compute_focus_remaining()
-            if self.capsule and self.capsule.winfo_exists():
-                self.capsule.update_view(focus_remaining, self.runtime.focus_total_sec)
+            self.runtime.focus_remaining_sec = focus_remaining
+            if self.current_mode == "main":
+                self._refresh_main_session_view(
+                    focus_remaining,
+                    status_text=f"微休息中，还剩 {self.timer.compute_break_remaining(self.config.break_seconds)} 秒恢复专注。",
+                    switch_enabled=False,
+                )
             if focus_remaining <= 0:
                 self.finish_session()
                 return
@@ -112,15 +164,53 @@ class FocusCapsuleApp:
             self.overlay.update_countdown(remaining)
             if remaining <= 0:
                 self.exit_rest("timeout")
+                return
 
         self._schedule_tick()
+
+    def _refresh_focus_views(self, remaining_sec: int) -> None:
+        if self.current_mode == "main":
+            self._refresh_main_session_view(remaining_sec)
+        elif self._is_capsule_visible():
+            self.capsule.update_view(remaining_sec, self.runtime.focus_total_sec)
+
+    def _refresh_main_session_view(
+        self,
+        remaining_sec: int,
+        status_text: str = "当前正在专注，请保持节奏。",
+        switch_enabled: bool = True,
+    ) -> None:
+        self.main_window.update_session_view(
+            remaining_sec=remaining_sec,
+            total_sec=self.runtime.focus_total_sec,
+            status_text=status_text,
+            switch_enabled=switch_enabled,
+        )
+
+    def switch_to_capsule_mode(self) -> None:
+        if self.runtime.state != SessionState.FOCUSING:
+            if self.current_mode == "main":
+                self._refresh_main_session_view(
+                    self.runtime.focus_remaining_sec,
+                    status_text="微休息中，暂时不能切换显示模式。",
+                    switch_enabled=False,
+                )
+            return
+
+        if self.current_mode == "main":
+            self._show_capsule_mode()
 
     def enter_rest(self) -> None:
         self.runtime.state = SessionState.RESTING
         self.runtime.break_remaining_sec = self.config.break_seconds
         self.timer.enter_rest()
-        if self.capsule and self.capsule.winfo_exists():
-            self.capsule.withdraw()
+        self._hide_capsule()
+        if self.current_mode == "main":
+            self._refresh_main_session_view(
+                self.runtime.focus_remaining_sec,
+                status_text=f"微休息中，还剩 {self.config.break_seconds} 秒恢复专注。",
+                switch_enabled=False,
+            )
         self.overlay.show(self.runtime.break_remaining_sec)
         play_alert(self.config.sound_enabled)
         self._schedule_tick()
@@ -129,12 +219,12 @@ class FocusCapsuleApp:
         self.overlay.hide()
         self.timer.exit_rest()
         self.runtime.state = SessionState.FOCUSING
-        if self.capsule and self.capsule.winfo_exists():
-            self.capsule.deiconify()
-            self.capsule.attributes("-topmost", True)
-            self.capsule.update_view(
+        self._apply_display_mode()
+        if self.current_mode == "main":
+            self._refresh_main_session_view(
                 self.runtime.focus_remaining_sec,
-                self.runtime.focus_total_sec,
+                status_text="休息结束，继续专注。",
+                switch_enabled=True,
             )
         self._schedule_tick()
 
@@ -154,17 +244,16 @@ class FocusCapsuleApp:
             self.main_window.after_cancel(self.tick_job)
             self.tick_job = None
         self.overlay.hide()
-        if self.capsule and self.capsule.winfo_exists():
-            self.capsule.withdraw()
+        self._hide_capsule()
+        self.current_mode = normalize_start_mode(self.config.start_mode)
+        self.main_window.show_config_view()
         self.main_window.deiconify()
         self.main_window.lift()
         self.main_window.focus_force()
         messagebox.showinfo("FocusCapsule", message)
 
     def show_main_window(self) -> None:
-        self.main_window.deiconify()
-        self.main_window.lift()
-        self.main_window.focus_force()
+        self._show_main_mode()
 
     def _shutdown(self) -> None:
         if self.tick_job is not None:

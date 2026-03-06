@@ -31,6 +31,7 @@ def load_config() -> SessionConfig:
             break_seconds=int(data.get("break_seconds", defaults.break_seconds)),
             sound_enabled=bool(data.get("sound_enabled", defaults.sound_enabled)),
             seed=data.get("seed", defaults.seed),
+            start_mode=str(data.get("start_mode", defaults.start_mode)),
         )
     except (TypeError, ValueError):
         return SessionConfig()
