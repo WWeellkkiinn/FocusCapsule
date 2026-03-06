@@ -22,6 +22,16 @@ def test_scale_overlay_size_only_adjusts_dimensions_for_tk() -> None:
     assert _scale_overlay_size(3840, 144.0) == 2560
 
 
+def test_negative_monitor_x_coordinate_must_remain_unscaled() -> None:
+    geometry = _build_geometry(
+        _scale_overlay_size(1440, 144.0),
+        _scale_overlay_size(2560, 144.0),
+        -1440,
+        0,
+    )
+    assert geometry == "960x1707-1440+0"
+
+
 class OverlayMasterStub:
     def __init__(self) -> None:
         self.bind_calls: list[tuple[str, object, str]] = []
