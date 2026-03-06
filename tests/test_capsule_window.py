@@ -8,77 +8,42 @@ from focuscapsule.ui.capsule_window import (
 )
 
 
-def test_compute_bottom_right_position_basic() -> None:
-    x, y = compute_bottom_right_position(
+def test_capsule_position_helpers_cover_default_and_clamped_layout() -> None:
+    assert compute_bottom_right_position(1920, 1080, DEFAULT_CAPSULE_WIDTH, DEFAULT_CAPSULE_HEIGHT, 24) == (1708, 984)
+    assert compute_bottom_right_position(200, 100, DEFAULT_CAPSULE_WIDTH, DEFAULT_CAPSULE_HEIGHT, 24) == (24, 24)
+    assert compute_default_capsule_position(
         screen_width=1920,
         screen_height=1080,
         window_width=DEFAULT_CAPSULE_WIDTH,
         window_height=DEFAULT_CAPSULE_HEIGHT,
-        margin=24,
-    )
-    assert x == 1708
-    assert y == 984
-
-
-def test_compute_bottom_right_position_clamped() -> None:
-    x, y = compute_bottom_right_position(
-        screen_width=200,
-        screen_height=100,
+        display_bounds=[(-1600, 0, 0, 900), (0, 0, 1920, 1080)],
+    ) == (1708, 984)
+    assert compute_clamped_capsule_position(
+        x=6889,
+        y=3845,
         window_width=DEFAULT_CAPSULE_WIDTH,
         window_height=DEFAULT_CAPSULE_HEIGHT,
-        margin=24,
-    )
-    assert x == 24
-    assert y == 24
+        display_bounds=[(0, 0, 1920, 1080)],
+    ) == (1708, 984)
 
 
-def test_compute_drag_position_uses_root_coordinates() -> None:
-    x, y = compute_drag_position(
+def test_capsule_drag_position_uses_root_coordinates_in_normal_case() -> None:
+    assert compute_drag_position(
         window_x=100,
         window_y=200,
         current_root_x=430,
         current_root_y=560,
         previous_root_x=400,
         previous_root_y=500,
-    )
-    assert x == 130
-    assert y == 260
+    ) == (130, 260)
 
 
-def test_compute_drag_position_handles_negative_offset() -> None:
-    x, y = compute_drag_position(
+def test_capsule_drag_position_handles_negative_offset_case() -> None:
+    assert compute_drag_position(
         window_x=-1200,
         window_y=80,
         current_root_x=360,
         current_root_y=200,
         previous_root_x=400,
         previous_root_y=160,
-    )
-    assert x == -1240
-    assert y == 120
-
-
-def test_compute_clamped_capsule_position_clamps_to_nearest_display() -> None:
-    x, y = compute_clamped_capsule_position(
-        x=6889,
-        y=3845,
-        window_width=DEFAULT_CAPSULE_WIDTH,
-        window_height=DEFAULT_CAPSULE_HEIGHT,
-        display_bounds=[(0, 0, 1920, 1080)],
-    )
-
-    assert x == 1708
-    assert y == 984
-
-
-def test_compute_default_capsule_position_uses_primary_display_bounds() -> None:
-    x, y = compute_default_capsule_position(
-        screen_width=1920,
-        screen_height=1080,
-        window_width=DEFAULT_CAPSULE_WIDTH,
-        window_height=DEFAULT_CAPSULE_HEIGHT,
-        display_bounds=[(-1600, 0, 0, 900), (0, 0, 1920, 1080)],
-    )
-
-    assert x == 1708
-    assert y == 984
+    ) == (-1240, 120)
