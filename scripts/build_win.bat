@@ -5,6 +5,7 @@ if not defined PYTHON_EXE (
   set PYTHON_EXE=python
 )
 set RUNTIME_HOOK=scripts\pyi_rth_tkfix.py
+set APP_ICON=assets\FocusCapsule.ico
 
 where "%PYTHON_EXE%" >nul 2>&1
 if errorlevel 1 (
@@ -14,6 +15,10 @@ if errorlevel 1 (
 if not exist "%RUNTIME_HOOK%" (
   echo runtime hook not found: %RUNTIME_HOOK%
   exit /b 3
+)
+if not exist "%APP_ICON%" (
+  echo app icon not found: %APP_ICON%
+  exit /b 4
 )
 
 set TCL_LIBRARY=
@@ -31,7 +36,7 @@ if exist FocusCapsule.spec del /f /q FocusCapsule.spec
 "%PYTHON_EXE%" -m pip install -r requirements.txt
 if errorlevel 1 exit /b 1
 
-"%PYTHON_EXE%" -m PyInstaller --clean --noconfirm --onedir --windowed --runtime-hook "%RUNTIME_HOOK%" --name FocusCapsule main.py
+"%PYTHON_EXE%" -m PyInstaller --clean --noconfirm --onedir --windowed --runtime-hook "%RUNTIME_HOOK%" --icon "%APP_ICON%" --name FocusCapsule main.py
 if errorlevel 1 exit /b 1
 
 if exist FocusCapsule.spec del /f /q FocusCapsule.spec
