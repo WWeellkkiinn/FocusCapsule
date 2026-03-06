@@ -30,6 +30,9 @@ def test_compute_progress_ratio_handles_zero_total() -> None:
     assert compute_progress_ratio(0, 0) == 1.0
 
 
-def test_normalize_start_mode_defaults_to_main() -> None:
+def test_normalize_start_mode_returns_capsule_unchanged() -> None:
     assert normalize_start_mode("capsule") == "capsule"
+
+
+def test_normalize_start_mode_defaults_to_main_on_unrecognized_value() -> None:
     assert normalize_start_mode("unexpected") == "main"

@@ -52,6 +52,7 @@ class FocusCapsuleApp:
         total_sec = config.total_minutes * 60
         min_interval_sec = max(0, math.ceil(config.interval_min_minutes * 60))
         max_interval_sec = max(0, math.floor(config.interval_max_minutes * 60))
+        # Ensure that rounding does not produce an inverted interval range
         max_interval_sec = max(max_interval_sec, min_interval_sec)
         trigger_points = build_trigger_points(
             total_sec=total_sec,
@@ -74,6 +75,8 @@ class FocusCapsuleApp:
 
         self._ensure_capsule()
         self._apply_display_mode()
+        if self.current_mode == "main":
+            self._refresh_main_session_view(self.runtime.focus_remaining_sec)
         self._schedule_tick()
 
     def _ensure_capsule(self) -> CapsuleWindow:
@@ -111,7 +114,6 @@ class FocusCapsuleApp:
         self.current_mode = "main"
         self._hide_capsule()
         self.main_window.show_session_view()
-        self._refresh_main_session_view(self.runtime.focus_remaining_sec)
         self.main_window.deiconify()
         self.main_window.lift()
         self.main_window.focus_force()
@@ -254,6 +256,7 @@ class FocusCapsuleApp:
 
     def show_main_window(self) -> None:
         self._show_main_mode()
+        self._refresh_main_session_view(self.runtime.focus_remaining_sec)
 
     def _shutdown(self) -> None:
         if self.tick_job is not None:
