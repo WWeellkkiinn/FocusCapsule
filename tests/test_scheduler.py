@@ -26,3 +26,15 @@ def test_trigger_points_stop_when_tail_is_shorter_than_min_interval() -> None:
     )
 
     assert points == [320]
+
+
+def test_trigger_points_allow_tail_equal_to_min_interval() -> None:
+    points = build_trigger_points(
+        total_sec=360,
+        min_interval_sec=180,
+        max_interval_sec=180,
+        guard_tail_sec=45,
+        seed=1,
+    )
+
+    assert points == [180]

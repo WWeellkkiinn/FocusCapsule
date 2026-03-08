@@ -20,12 +20,13 @@ def build_trigger_points(
     rng = random.Random(seed)
     points: list[int] = []
     remaining = total_sec
-    effective_guard_tail_sec = max(int(guard_tail_sec), int(min_interval_sec))
 
     while True:
         step = rng.randint(min_interval_sec, max_interval_sec)
         candidate = remaining - step
-        if candidate <= effective_guard_tail_sec:
+        if candidate <= guard_tail_sec:
+            break
+        if candidate < min_interval_sec:
             break
         if candidate >= total_sec:
             break
