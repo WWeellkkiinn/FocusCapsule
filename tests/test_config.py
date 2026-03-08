@@ -67,3 +67,24 @@ def test_load_config_defaults_finish_break_minutes_when_missing(monkeypatch, tmp
     assert loaded.total_minutes == 30
     assert loaded.break_seconds == 15
     assert loaded.finish_break_minutes == 5
+
+
+def test_load_config_ignores_invalid_finish_break_minutes_without_dropping_other_fields(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.json"
+    monkeypatch.setattr("focuscapsule.config.CONFIG_PATH", config_path)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        '{"total_minutes": 30, "break_seconds": 15, "finish_break_minutes": "abc", "capsule_x": 80, "capsule_y": 120}',
+        encoding="utf-8",
+    )
+
+    loaded = load_config()
+
+    assert loaded.total_minutes == 30
+    assert loaded.break_seconds == 15
+    assert loaded.finish_break_minutes == 5
+    assert loaded.capsule_x == 80
+    assert loaded.capsule_y == 120

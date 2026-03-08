@@ -396,3 +396,16 @@ def test_app_end_session_early_still_closes_without_finish_rest(monkeypatch) -> 
     app.end_session_early()
 
     assert closed == ["已提前结束本次专注。"]
+
+
+def test_app_end_session_early_delegates_to_skip_rest_during_rest_states(monkeypatch) -> None:
+    app = build_app(state=SessionState.FINISH_RESTING)
+    skipped: list[str] = []
+    closed: list[str] = []
+    monkeypatch.setattr(app, "skip_rest", lambda: skipped.append("skip"))
+    monkeypatch.setattr(app, "_close_session", lambda message, play_sound=True: closed.append(message))
+
+    app.end_session_early()
+
+    assert skipped == ["skip"]
+    assert closed == []

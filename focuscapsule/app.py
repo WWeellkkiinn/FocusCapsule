@@ -317,6 +317,9 @@ class FocusCapsuleApp:
             self.complete_finish_rest("esc")
 
     def end_session_early(self) -> None:
+        if self.runtime.state in (SessionState.MICRO_RESTING, SessionState.FINISH_RESTING):
+            self.skip_rest()
+            return
         self._close_session("已提前结束本次专注。")
 
     def finish_session(self) -> None:
