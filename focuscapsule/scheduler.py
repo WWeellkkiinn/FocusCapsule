@@ -26,6 +26,8 @@ def build_trigger_points(
         candidate = remaining - step
         if candidate <= guard_tail_sec:
             break
+        if candidate < min_interval_sec:
+            break
         if candidate >= total_sec:
             break
         points.append(candidate)
