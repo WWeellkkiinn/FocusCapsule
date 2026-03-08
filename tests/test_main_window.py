@@ -1,7 +1,9 @@
+from focuscapsule.state import SessionConfig
 from focuscapsule.ui.main_window import (
     SHORT_INPUT_WIDTH,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
+    MainSettingsWindow,
     compute_center_position,
     compute_progress_ratio,
     compute_window_outer_size,
@@ -26,12 +28,47 @@ def test_main_window_progress_and_mode_helpers_cover_core_paths() -> None:
 
 
 def test_main_window_geometry_helpers_cover_normal_and_clamped_layout() -> None:
-    assert compute_center_position(1920, 1080, WINDOW_WIDTH, WINDOW_HEIGHT) == (758, 360)
+    assert compute_center_position(1920, 1080, WINDOW_WIDTH, WINDOW_HEIGHT) == (758, 344)
     assert compute_center_position(300, 200, WINDOW_WIDTH, WINDOW_HEIGHT) == (0, 0)
-    assert compute_window_outer_size(404, 360, 8, 31) == (420, 399)
+    assert compute_window_outer_size(404, 392, 8, 31) == (420, 431)
 
 
 def test_main_window_layout_constants_match_compact_design() -> None:
     assert WINDOW_WIDTH == 404
-    assert WINDOW_HEIGHT == 360
+    assert WINDOW_HEIGHT == 392
     assert SHORT_INPUT_WIDTH == 62
+
+
+def test_main_window_start_click_reads_finish_break_minutes() -> None:
+    captured: list[SessionConfig] = []
+    window = MainSettingsWindow.__new__(MainSettingsWindow)
+    window.total_minutes_var = type("Var", (), {"get": lambda self: "25"})()
+    window.interval_min_var = type("Var", (), {"get": lambda self: "3"})()
+    window.interval_max_var = type("Var", (), {"get": lambda self: "5"})()
+    window.break_seconds_var = type("Var", (), {"get": lambda self: "10"})()
+    window.finish_break_minutes_var = type("Var", (), {"get": lambda self: "7"})()
+    window.sound_var = type("Var", (), {"get": lambda self: True})()
+    window.capsule_mode_var = type("Var", (), {"get": lambda self: False})()
+    window.error_var = type("Var", (), {"set": lambda self, value: None})()
+    window.on_start = lambda config: captured.append(config)
+
+    MainSettingsWindow._on_start_clicked(window)
+
+    assert captured[0].finish_break_minutes == 7
+
+
+def test_main_window_set_form_writes_finish_break_minutes() -> None:
+    values: list[str] = []
+    window = MainSettingsWindow.__new__(MainSettingsWindow)
+    window.total_minutes_var = type("Var", (), {"set": lambda self, value: None})()
+    window.interval_min_var = type("Var", (), {"set": lambda self, value: None})()
+    window.interval_max_var = type("Var", (), {"set": lambda self, value: None})()
+    window.break_seconds_var = type("Var", (), {"set": lambda self, value: None})()
+    window.finish_break_minutes_var = type("Var", (), {"set": lambda self, value: values.append(value)})()
+    window.sound_var = type("Var", (), {"set": lambda self, value: None})()
+    window.capsule_mode_var = type("Var", (), {"set": lambda self, value: None})()
+    window._update_preview_countdown = lambda: None
+
+    MainSettingsWindow.set_form(window, SessionConfig(finish_break_minutes=9))
+
+    assert values == ["9"]

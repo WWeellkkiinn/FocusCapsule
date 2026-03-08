@@ -11,7 +11,8 @@ _MIN_INTERVAL_MINUTES = 1 / 60
 class SessionState(str, Enum):
     IDLE = "IDLE"
     FOCUSING = "FOCUSING"
-    RESTING = "RESTING"
+    MICRO_RESTING = "MICRO_RESTING"
+    FINISH_RESTING = "FINISH_RESTING"
     FINISHED = "FINISHED"
 
 
@@ -21,6 +22,7 @@ class SessionConfig:
     interval_min_minutes: float = 3.0
     interval_max_minutes: float = 5.0
     break_seconds: int = 10
+    finish_break_minutes: int = 5
     sound_enabled: bool = True
     seed: int | None = None
     start_mode: str = "main"
@@ -81,6 +83,8 @@ def validate_config(config: SessionConfig) -> list[str]:
 
     if not (5 <= config.break_seconds <= 120):
         errors.append("休息时长必须在 5~120 秒之间")
+    if not (1 <= config.finish_break_minutes <= 60):
+        errors.append("结束后休息时长必须在 1~60 分钟之间")
     if config.interval_max_minutes * 60 >= config.total_minutes * 60:
         errors.append("随机区间最大值必须小于专注总时长")
     return errors

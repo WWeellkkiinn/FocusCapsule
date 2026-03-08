@@ -5,7 +5,7 @@ import customtkinter as ctk
 from focuscapsule.state import SessionConfig
 
 WINDOW_WIDTH = 404
-WINDOW_HEIGHT = 360
+WINDOW_HEIGHT = 392
 SHORT_INPUT_WIDTH = 62
 
 
@@ -69,6 +69,7 @@ class MainSettingsWindow(ctk.CTk):
         self.interval_min_var = ctk.StringVar(value="3")
         self.interval_max_var = ctk.StringVar(value="5")
         self.break_seconds_var = ctk.StringVar(value="10")
+        self.finish_break_minutes_var = ctk.StringVar(value="5")
         self.sound_var = ctk.BooleanVar(value=True)
         self.capsule_mode_var = ctk.BooleanVar(value=False)
         self.error_var = ctk.StringVar(value="")
@@ -208,6 +209,14 @@ class MainSettingsWindow(ctk.CTk):
         ctk.CTkLabel(interval_row, text="~", text_color="#526072").pack(side="left", padx=8)
         self._create_short_entry(interval_row, self.interval_max_var).pack(side="left")
         ctk.CTkLabel(interval_row, text="分钟", text_color="#526072").pack(side="left", padx=(8, 0))
+
+        finish_break_row = ctk.CTkFrame(panel, fg_color="transparent")
+        finish_break_row.pack(fill="x", padx=14, pady=(0, 10))
+        ctk.CTkLabel(finish_break_row, text="结束后休息", text_color="#243447").pack(side="left")
+        finish_row = ctk.CTkFrame(finish_break_row, fg_color="transparent")
+        finish_row.pack(side="left", padx=(8, 0))
+        self._create_short_entry(finish_row, self.finish_break_minutes_var).pack(side="left")
+        ctk.CTkLabel(finish_row, text="分钟", text_color="#526072").pack(side="left", padx=(8, 0))
         return panel
 
     def _build_toggle_panel(self) -> ctk.CTkFrame:
@@ -359,6 +368,7 @@ class MainSettingsWindow(ctk.CTk):
                 interval_min_minutes=float(self.interval_min_var.get().strip()),
                 interval_max_minutes=float(self.interval_max_var.get().strip()),
                 break_seconds=int(self.break_seconds_var.get().strip()),
+                finish_break_minutes=int(self.finish_break_minutes_var.get().strip()),
                 sound_enabled=bool(self.sound_var.get()),
                 seed=None,
                 start_mode="capsule" if bool(self.capsule_mode_var.get()) else "main",
@@ -382,6 +392,7 @@ class MainSettingsWindow(ctk.CTk):
         self.interval_min_var.set(str(config.interval_min_minutes))
         self.interval_max_var.set(str(config.interval_max_minutes))
         self.break_seconds_var.set(str(config.break_seconds))
+        self.finish_break_minutes_var.set(str(config.finish_break_minutes))
         self.sound_var.set(config.sound_enabled)
         self.capsule_mode_var.set(normalize_start_mode(config.start_mode) == "capsule")
         self._update_preview_countdown()

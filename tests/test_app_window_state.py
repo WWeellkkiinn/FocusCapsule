@@ -76,6 +76,7 @@ class CapsuleStub:
         self.updated: list[tuple[int, int]] = []
         self.finished_state_calls = 0
         self.hwnd = 9527
+        self.call_order: list[str] = []
 
     def winfo_exists(self) -> bool:
         return True
@@ -90,6 +91,7 @@ class CapsuleStub:
     def deiconify(self) -> None:
         self._state = "normal"
         self.deiconify_calls += 1
+        self.call_order.append("deiconify")
 
     def attributes(self, key: str, value: bool) -> None:
         self.topmost_values.append((key, value))
@@ -97,6 +99,7 @@ class CapsuleStub:
     def set_default_position(self, margin: int = 24, preferred_position: tuple[int, int] | None = None) -> None:
         self.default_position_calls += 1
         self.default_position_args.append(preferred_position)
+        self.call_order.append("position")
 
     def update_view(self, remaining_sec: int, total_sec: int) -> None:
         self.updated.append((remaining_sec, total_sec))
@@ -111,13 +114,13 @@ class CapsuleStub:
 class OverlayStub:
     def __init__(self) -> None:
         self.hide_calls = 0
-        self.show_calls: list[int] = []
+        self.show_calls: list[dict] = []
 
     def hide(self) -> None:
         self.hide_calls += 1
 
-    def show(self, seconds: int) -> None:
-        self.show_calls.append(seconds)
+    def show(self, seconds: int, title: str, hint: str) -> None:
+        self.show_calls.append({"seconds": seconds, "title": title, "hint": hint})
 
 
 class TimerStub:
@@ -218,17 +221,6 @@ def test_app_close_and_finish_paths_cover_config_and_capsule_end_states(monkeypa
     assert close_app.main_window.after_cancel_calls == ["job-1"]
     assert close_alerts == [True]
 
-    finish_app = build_app(capsule_state="normal")
-    finish_app.current_mode = "capsule"
-    finish_alerts: list[bool] = []
-    monkeypatch.setattr("focuscapsule.app.play_triple_alert", lambda enabled: finish_alerts.append(enabled))
-    finish_app.finish_session()
-    assert finish_app.runtime.state == SessionState.FINISHED
-    assert finish_app.overlay.hide_calls == 1
-    assert finish_app.main_window.config_view_calls == 1
-    assert finish_app.capsule.finished_state_calls == 1
-    assert finish_alerts == [True]
-
 
 def test_app_finished_capsule_paths_cover_show_main_and_restart(monkeypatch) -> None:
     show_main_app = build_app(state=SessionState.FINISHED, capsule_state="normal")
@@ -265,6 +257,7 @@ def test_app_capsule_position_paths_cover_show_save_validate_and_launch_normaliz
     app._show_capsule()
     assert app.capsule.default_position_args[-1] == (-1440, 120)
     assert app._virtual_desktop.synced_hwnds == [9527]
+    assert app.capsule.call_order[:2] == ["position", "deiconify"]
 
     app.remember_capsule_position(-1330, 96)
     assert app.config.capsule_x == -1330
@@ -317,19 +310,102 @@ def test_app_rest_transition_paths_cover_overlay_and_sound(monkeypatch) -> None:
     enter_alerts: list[bool] = []
     monkeypatch.setattr("focuscapsule.app.play_double_alert", lambda enabled: enter_alerts.append(enabled))
     monkeypatch.setattr(enter_app, "_schedule_tick", lambda: None)
-    enter_app.enter_rest()
-    assert enter_app.runtime.state == SessionState.RESTING
+    enter_app.enter_micro_rest()
+    assert enter_app.runtime.state == SessionState.MICRO_RESTING
     assert enter_app.timer.enter_rest_calls == 1
-    assert enter_app.overlay.show_calls == [enter_app.config.break_seconds]
+    assert enter_app.overlay.show_calls == [
+        {
+            "seconds": enter_app.config.break_seconds,
+            "title": "微休息时间：请转动脖子、闭眼深呼吸",
+            "hint": "按 Esc 键可跳过本次休息",
+        }
+    ]
     assert enter_alerts == [True]
 
-    exit_app = build_app(state=SessionState.RESTING)
+    exit_app = build_app(state=SessionState.MICRO_RESTING)
     exit_alerts: list[bool] = []
     monkeypatch.setattr("focuscapsule.app.play_double_alert", lambda enabled: exit_alerts.append(enabled))
     monkeypatch.setattr(exit_app, "_apply_display_mode", lambda: None)
     monkeypatch.setattr(exit_app, "_schedule_tick", lambda: None)
-    exit_app.exit_rest("timeout")
+    exit_app.exit_micro_rest("timeout")
     assert exit_app.runtime.state == SessionState.FOCUSING
     assert exit_app.overlay.hide_calls == 1
     assert exit_app.timer.exit_rest_calls == 1
     assert exit_alerts == [True]
+
+
+def test_app_finish_rest_paths_cover_enter_skip_and_timeout(monkeypatch) -> None:
+    finish_app = build_app(state=SessionState.FOCUSING, capsule_state="normal")
+    finish_app.current_mode = "capsule"
+    finish_alerts: list[bool] = []
+    monkeypatch.setattr("focuscapsule.app.play_triple_alert", lambda enabled: finish_alerts.append(enabled))
+    monkeypatch.setattr(finish_app, "_schedule_tick", lambda: None)
+
+    finish_app.enter_finish_rest()
+
+    assert finish_app.runtime.state == SessionState.FINISH_RESTING
+    assert finish_app.runtime.focus_remaining_sec == 0
+    assert finish_app.current_mode == "main"
+    assert finish_app.capsule.state() == "withdrawn"
+    assert finish_app.main_window.session_view_calls == 1
+    assert finish_app.main_window.lift_calls == 0
+    assert finish_app.main_window.focus_calls == 0
+    assert finish_app.overlay.show_calls == [
+        {
+            "seconds": finish_app.config.finish_break_minutes * 60,
+            "title": "专注结束：请离开屏幕，放松休息",
+            "hint": "按 Esc 键可提前结束本次休息",
+        }
+    ]
+    assert finish_alerts == [True]
+
+    skip_app = build_app(state=SessionState.FINISH_RESTING)
+    completed: list[str] = []
+    monkeypatch.setattr(skip_app, "complete_finish_rest", lambda reason: completed.append(reason))
+    skip_app.skip_rest()
+    assert completed == ["esc"]
+
+    timeout_app = build_app(state=SessionState.FINISH_RESTING)
+    timeout_app.tick_job = "job-2"
+    close_alerts: list[bool] = []
+    monkeypatch.setattr("focuscapsule.app.play_triple_alert", lambda enabled: close_alerts.append(enabled))
+
+    timeout_app.complete_finish_rest("timeout")
+
+    assert timeout_app.runtime.state == SessionState.FINISHED
+    assert timeout_app.overlay.hide_calls == 1
+    assert timeout_app.main_window.config_status_messages == ["本次专注已完成。"]
+    assert close_alerts == []
+
+
+def test_app_finish_session_enters_finish_rest_instead_of_closing(monkeypatch) -> None:
+    app = build_app(state=SessionState.FOCUSING, capsule_state="normal")
+    entered: list[str] = []
+    monkeypatch.setattr(app, "enter_finish_rest", lambda: entered.append("finish_rest"))
+
+    app.finish_session()
+
+    assert entered == ["finish_rest"]
+
+
+def test_app_end_session_early_still_closes_without_finish_rest(monkeypatch) -> None:
+    app = build_app(state=SessionState.FOCUSING)
+    closed: list[str] = []
+    monkeypatch.setattr(app, "_close_session", lambda message, play_sound=True: closed.append(message))
+
+    app.end_session_early()
+
+    assert closed == ["已提前结束本次专注。"]
+
+
+def test_app_end_session_early_delegates_to_skip_rest_during_rest_states(monkeypatch) -> None:
+    app = build_app(state=SessionState.FINISH_RESTING)
+    skipped: list[str] = []
+    closed: list[str] = []
+    monkeypatch.setattr(app, "skip_rest", lambda: skipped.append("skip"))
+    monkeypatch.setattr(app, "_close_session", lambda message, play_sound=True: closed.append(message))
+
+    app.end_session_early()
+
+    assert skipped == ["skip"]
+    assert closed == []

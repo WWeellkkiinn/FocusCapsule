@@ -29,6 +29,10 @@ def load_config() -> SessionConfig:
                 data.get("interval_max_minutes", defaults.interval_max_minutes)
             ),
             break_seconds=int(data.get("break_seconds", defaults.break_seconds)),
+            finish_break_minutes=_parse_int(
+                data.get("finish_break_minutes", defaults.finish_break_minutes),
+                defaults.finish_break_minutes,
+            ),
             sound_enabled=bool(data.get("sound_enabled", defaults.sound_enabled)),
             seed=data.get("seed", defaults.seed),
             start_mode=str(data.get("start_mode", defaults.start_mode)),
@@ -55,3 +59,10 @@ def _parse_optional_int(value) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _parse_int(value, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(fallback)
