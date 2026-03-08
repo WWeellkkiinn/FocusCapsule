@@ -13,6 +13,11 @@ def _build_geometry(width: int, height: int, x: int, y: int) -> str:
     return f"{int(width)}x{int(height)}{int(x):+d}{int(y):+d}"
 
 
+def _format_countdown(seconds: int) -> str:
+    minutes, secs = divmod(max(0, int(seconds)), 60)
+    return f"{minutes:02d}:{secs:02d}"
+
+
 def _scale_overlay_size(size: int, pixels_per_inch: float) -> int:
     if pixels_per_inch <= 0:
         return int(size)
@@ -24,13 +29,18 @@ class OverlayWindow:
         self.master = master
         self.on_skip = on_skip
         self.windows: list[ctk.CTkToplevel] = []
-        self.countdown_var = ctk.StringVar(value="10")
+        self.countdown_var = ctk.StringVar(value="00:10")
+        self.title_var = ctk.StringVar(value="微休息时间：请转动脖子、闭眼深呼吸")
+        self.hint_var = ctk.StringVar(value="按 Esc 键可跳过本次休息")
         self._master_escape_bind_id: str | None = None
         self._activation_job = None
+        self._grab_window: ctk.CTkToplevel | None = None
 
-    def show(self, seconds: int) -> None:
+    def show(self, seconds: int, title: str, hint: str) -> None:
         self.hide()
-        self.countdown_var.set(str(seconds))
+        self.countdown_var.set(_format_countdown(seconds))
+        self.title_var.set(title)
+        self.hint_var.set(hint)
         screen_specs = self._screen_specs()
 
         for width, height, x, y in screen_specs:
@@ -53,7 +63,7 @@ class OverlayWindow:
 
             ctk.CTkLabel(
                 frame,
-                text="微休息时间：请转动脖子、闭眼深呼吸",
+                textvariable=self.title_var,
                 font=("Microsoft YaHei", 30, "bold"),
                 text_color=OVERLAY_TITLE_COLOR,
             ).pack(pady=(0, 16))
@@ -65,7 +75,7 @@ class OverlayWindow:
             ).pack()
             ctk.CTkLabel(
                 frame,
-                text="按 Esc 键可跳过本次休息",
+                textvariable=self.hint_var,
                 font=("Microsoft YaHei", 16),
                 text_color=OVERLAY_HINT_COLOR,
             ).pack(pady=(16, 0))
@@ -74,11 +84,12 @@ class OverlayWindow:
             self.windows.append(win)
 
         self._bind_master_escape()
+        self._claim_keyboard_focus()
         self._activate_windows()
         self._activation_job = self.master.after(80, self._activate_windows)
 
     def update_countdown(self, seconds: int) -> None:
-        self.countdown_var.set(str(max(0, seconds)))
+        self.countdown_var.set(_format_countdown(seconds))
 
     def hide(self) -> None:
         if self._activation_job is not None:
@@ -93,6 +104,12 @@ class OverlayWindow:
             except Exception:
                 pass
             self._master_escape_bind_id = None
+        if self._grab_window is not None:
+            try:
+                self._grab_window.grab_release()
+            except Exception:
+                pass
+            self._grab_window = None
         for win in self.windows:
             try:
                 win.destroy()
@@ -107,6 +124,23 @@ class OverlayWindow:
     def _bind_master_escape(self) -> None:
         self._master_escape_bind_id = self.master.bind("<Escape>", self._handle_escape, add="+")
 
+    def _claim_keyboard_focus(self) -> None:
+        if not self.windows:
+            return
+        self._grab_window = self.windows[0]
+        try:
+            self._grab_window.update_idletasks()
+        except Exception:
+            pass
+        try:
+            self._grab_window.grab_set()
+        except Exception:
+            pass
+        try:
+            self._grab_window.focus_force()
+        except Exception:
+            pass
+
     def _activate_windows(self) -> None:
         for win in self.windows:
             try:
@@ -114,6 +148,10 @@ class OverlayWindow:
                     continue
             except Exception:
                 continue
+            try:
+                win.update_idletasks()
+            except Exception:
+                pass
             try:
                 win.lift()
             except Exception:

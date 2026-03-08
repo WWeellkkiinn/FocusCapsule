@@ -1,4 +1,9 @@
-from focuscapsule.ui.overlay_window import OverlayWindow, _build_geometry, _scale_overlay_size
+from focuscapsule.ui.overlay_window import (
+    OverlayWindow,
+    _build_geometry,
+    _format_countdown,
+    _scale_overlay_size,
+)
 
 
 def test_overlay_geometry_helpers_cover_signs_and_dpi_scaling() -> None:
@@ -14,6 +19,8 @@ def test_overlay_geometry_helpers_cover_signs_and_dpi_scaling() -> None:
         0,
     )
     assert geometry == "960x1707-1440+0"
+    assert _format_countdown(300) == "05:00"
+    assert _format_countdown(9) == "00:09"
 
 
 class OverlayMasterStub:
@@ -45,9 +52,15 @@ class OverlayWinStub:
         self.focus_calls = 0
         self.attributes_calls: list[tuple[str, bool]] = []
         self.destroy_calls = 0
+        self.update_calls = 0
+        self.grab_set_calls = 0
+        self.grab_release_calls = 0
 
     def winfo_exists(self) -> bool:
         return self.exists
+
+    def update_idletasks(self) -> None:
+        self.update_calls += 1
 
     def lift(self) -> None:
         self.lift_calls += 1
@@ -57,6 +70,12 @@ class OverlayWinStub:
 
     def focus_force(self) -> None:
         self.focus_calls += 1
+
+    def grab_set(self) -> None:
+        self.grab_set_calls += 1
+
+    def grab_release(self) -> None:
+        self.grab_release_calls += 1
 
     def destroy(self) -> None:
         self.destroy_calls += 1
@@ -80,9 +99,24 @@ def test_overlay_hide_cleans_bindings_jobs_and_windows() -> None:
     overlay.windows = [OverlayWinStub()]
     overlay._master_escape_bind_id = "bind-1"
     overlay._activation_job = "after-1"
+    overlay._grab_window = overlay.windows[0]
 
     overlay.hide()
 
     assert overlay.master.after_cancel_calls == ["after-1"]
     assert overlay.master.unbind_calls == [("<Escape>", "bind-1")]
     assert overlay.windows == []
+    assert overlay._grab_window is None
+
+
+def test_overlay_claim_keyboard_focus_prefers_first_window() -> None:
+    overlay = OverlayWindow.__new__(OverlayWindow)
+    overlay.windows = [OverlayWinStub(), OverlayWinStub()]
+    overlay._grab_window = None
+
+    overlay._claim_keyboard_focus()
+
+    assert overlay._grab_window is overlay.windows[0]
+    assert overlay.windows[0].update_calls == 1
+    assert overlay.windows[0].grab_set_calls == 1
+    assert overlay.windows[0].focus_calls == 1

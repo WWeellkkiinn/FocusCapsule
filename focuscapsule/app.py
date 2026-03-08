@@ -18,7 +18,7 @@ from focuscapsule.ui.capsule_window import (
     compute_default_capsule_position,
     get_display_bounds,
 )
-from focuscapsule.ui.main_window import MainSettingsWindow, normalize_start_mode
+from focuscapsule.ui.main_window import MainSettingsWindow, format_countdown, normalize_start_mode
 from focuscapsule.ui.overlay_window import OverlayWindow
 from focuscapsule.virtual_desktop import VirtualDesktopController
 
@@ -125,9 +125,9 @@ class FocusCapsuleApp:
 
     def _show_capsule(self) -> None:
         capsule = self._ensure_capsule()
+        capsule.set_default_position(preferred_position=self._validated_capsule_position())
         capsule.deiconify()
         capsule.attributes("-topmost", True)
-        capsule.set_default_position(preferred_position=self._validated_capsule_position())
         self._sync_capsule_virtual_desktop(force=True)
         capsule.update_view(
             self.runtime.focus_remaining_sec,
@@ -167,30 +167,46 @@ class FocusCapsuleApp:
 
             if remaining in self.runtime.active_trigger_points:
                 self.runtime.active_trigger_points.remove(remaining)
-                self.enter_rest()
+                self.enter_micro_rest()
                 return
 
             if remaining <= 0:
-                self.finish_session()
+                self.enter_finish_rest()
                 return
 
-        elif self.runtime.state == SessionState.RESTING:
+        elif self.runtime.state == SessionState.MICRO_RESTING:
             focus_remaining = self.timer.compute_focus_remaining()
             self.runtime.focus_remaining_sec = focus_remaining
             if self.current_mode == "main":
                 self._refresh_main_session_view(
                     focus_remaining,
-                    status_text=f"微休息中，还剩 {self.timer.compute_break_remaining(self.config.break_seconds)} 秒恢复专注。",
+                    status_text=self._micro_rest_status_text(
+                        self.timer.compute_break_remaining(self.config.break_seconds)
+                    ),
                     switch_enabled=False,
                 )
             if focus_remaining <= 0:
-                self.finish_session()
+                self.enter_finish_rest()
                 return
 
             remaining = self.timer.compute_break_remaining(self.config.break_seconds)
             self.overlay.update_countdown(remaining)
             if remaining <= 0:
-                self.exit_rest("timeout")
+                self.exit_micro_rest("timeout")
+                return
+
+        elif self.runtime.state == SessionState.FINISH_RESTING:
+            remaining = self.timer.compute_break_remaining(self._finish_break_seconds())
+            self.runtime.break_remaining_sec = remaining
+            if self.current_mode == "main":
+                self._refresh_main_session_view(
+                    self.runtime.focus_remaining_sec,
+                    status_text=self._finish_rest_status_text(remaining),
+                    switch_enabled=False,
+                )
+            self.overlay.update_countdown(remaining)
+            if remaining <= 0:
+                self.complete_finish_rest("timeout")
                 return
 
         self._schedule_tick()
@@ -219,7 +235,7 @@ class FocusCapsuleApp:
             if self.current_mode == "main":
                 self._refresh_main_session_view(
                     self.runtime.focus_remaining_sec,
-                    status_text="微休息中，暂时不能切换显示模式。",
+                    status_text="休息中，暂时不能切换显示模式。",
                     switch_enabled=False,
                 )
             return
@@ -227,22 +243,35 @@ class FocusCapsuleApp:
         if self.current_mode == "main":
             self._show_capsule_mode()
 
-    def enter_rest(self) -> None:
-        self.runtime.state = SessionState.RESTING
+    def _micro_rest_status_text(self, remaining: int) -> str:
+        return f"微休息中，还剩 {remaining} 秒恢复专注。"
+
+    def _finish_rest_status_text(self, remaining: int) -> str:
+        return f"结束后休息中，还剩 {format_countdown(remaining)}。"
+
+    def _finish_break_seconds(self) -> int:
+        return self.config.finish_break_minutes * 60
+
+    def enter_micro_rest(self) -> None:
+        self.runtime.state = SessionState.MICRO_RESTING
         self.runtime.break_remaining_sec = self.config.break_seconds
         self.timer.enter_rest()
         self._hide_capsule()
         if self.current_mode == "main":
             self._refresh_main_session_view(
                 self.runtime.focus_remaining_sec,
-                status_text=f"微休息中，还剩 {self.config.break_seconds} 秒恢复专注。",
+                status_text=self._micro_rest_status_text(self.config.break_seconds),
                 switch_enabled=False,
             )
-        self.overlay.show(self.runtime.break_remaining_sec)
+        self.overlay.show(
+            self.runtime.break_remaining_sec,
+            title="微休息时间：请转动脖子、闭眼深呼吸",
+            hint="按 Esc 键可跳过本次休息",
+        )
         play_double_alert(self.config.sound_enabled)
         self._schedule_tick()
 
-    def exit_rest(self, _reason: str) -> None:
+    def exit_micro_rest(self, _reason: str) -> None:
         self.overlay.hide()
         self.timer.exit_rest()
         self.runtime.state = SessionState.FOCUSING
@@ -256,41 +285,61 @@ class FocusCapsuleApp:
             )
         self._schedule_tick()
 
+    def enter_finish_rest(self) -> None:
+        self.runtime.state = SessionState.FINISH_RESTING
+        self.runtime.focus_remaining_sec = 0
+        self.runtime.break_remaining_sec = self._finish_break_seconds()
+        self.timer.enter_rest()
+        self.current_mode = "main"
+        self._hide_capsule()
+        self.main_window.show_session_view()
+        self.main_window.deiconify()
+        self._refresh_main_session_view(
+            0,
+            status_text=self._finish_rest_status_text(self.runtime.break_remaining_sec),
+            switch_enabled=False,
+        )
+        self.overlay.show(
+            self.runtime.break_remaining_sec,
+            title="专注结束：请离开屏幕，放松休息",
+            hint="按 Esc 键可提前结束本次休息",
+        )
+        play_triple_alert(self.config.sound_enabled)
+        self._schedule_tick()
+
+    def complete_finish_rest(self, _reason: str) -> None:
+        self._close_session("本次专注已完成。", play_sound=False)
+
     def skip_rest(self) -> None:
-        if self.runtime.state == SessionState.RESTING:
-            self.exit_rest("esc")
+        if self.runtime.state == SessionState.MICRO_RESTING:
+            self.exit_micro_rest("esc")
+        elif self.runtime.state == SessionState.FINISH_RESTING:
+            self.complete_finish_rest("esc")
 
     def end_session_early(self) -> None:
         self._close_session("已提前结束本次专注。")
 
     def finish_session(self) -> None:
         self._last_finish_message = "本次专注已完成。"
-        if self.current_mode == "capsule" and self._is_capsule_visible():
-            self.runtime.state = SessionState.FINISHED
-            if self.tick_job is not None:
-                self.main_window.after_cancel(self.tick_job)
-                self.tick_job = None
-            self.overlay.hide()
-            self.main_window.show_config_view(status_message=self._last_finish_message)
-            self.capsule.show_finished_state()
-            play_triple_alert(self.config.sound_enabled)
-            return
-        self._close_session(self._last_finish_message)
+        self.enter_finish_rest()
 
-    def _close_session(self, message: str) -> None:
+    def _close_session(self, message: str, play_sound: bool = True) -> None:
         self._last_finish_message = message
         self.runtime.state = SessionState.FINISHED
         if self.tick_job is not None:
             self.main_window.after_cancel(self.tick_job)
             self.tick_job = None
         self.overlay.hide()
+        self.timer.exit_rest()
+        self.runtime.break_remaining_sec = 0
         self._hide_capsule()
         self.current_mode = normalize_start_mode(self.config.start_mode)
         self.main_window.show_config_view(status_message=message)
         self.main_window.deiconify()
         self.main_window.lift()
         self.main_window.focus_force()
-        play_triple_alert(self.config.sound_enabled)
+        if play_sound:
+            play_triple_alert(self.config.sound_enabled)
 
     def show_main_window(self) -> None:
         if self.runtime.state == SessionState.FINISHED:
