@@ -143,24 +143,12 @@ class OverlayWindow:
         self._grab_window = self.windows[0]
         self._activate_window(self._grab_window)
         try:
-            self._grab_window.update_idletasks()
-        except Exception:
-            pass
-        try:
             self._grab_window.grab_set_global()
         except Exception:
             try:
                 self._grab_window.grab_set()
             except Exception:
                 pass
-        try:
-            self._grab_window.focus_set()
-        except Exception:
-            pass
-        try:
-            self._grab_window.focus_force()
-        except Exception:
-            pass
 
     def _schedule_activation_refresh(self) -> None:
         self._activate_windows()
@@ -182,10 +170,11 @@ class OverlayWindow:
             return
         stop_event = threading.Event()
         self._escape_monitor_stop = stop_event
+        master = self.master
         try:
             threading.Thread(
                 target=self._poll_escape_key,
-                args=(stop_event,),
+                args=(stop_event, master),
                 daemon=True,
             ).start()
         except Exception:
@@ -197,7 +186,7 @@ class OverlayWindow:
         self._escape_monitor_stop.set()
         self._escape_monitor_stop = None
 
-    def _poll_escape_key(self, stop_event: threading.Event) -> None:
+    def _poll_escape_key(self, stop_event: threading.Event, master) -> None:
         try:
             import ctypes
 
@@ -208,7 +197,7 @@ class OverlayWindow:
         while not stop_event.wait(0.03):
             try:
                 if user32.GetAsyncKeyState(ESCAPE_VK) & 0x1:
-                    self.master.after(0, self._request_skip_once)
+                    master.after(0, self._request_skip_once)
                     return
             except Exception:
                 return

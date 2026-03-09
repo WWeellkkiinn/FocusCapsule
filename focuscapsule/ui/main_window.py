@@ -242,7 +242,6 @@ class MainSettingsWindow(ctk.CTk):
             text="胶囊模式",
             variable=self.capsule_mode_var,
             text_color="#243447",
-            command=self._emit_capsule_mode_change,
         ).pack(side="left")
         return panel
 

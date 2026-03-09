@@ -118,14 +118,14 @@ def test_overlay_claim_keyboard_focus_prefers_first_window() -> None:
     overlay = OverlayWindow.__new__(OverlayWindow)
     overlay.windows = [OverlayWinStub(), OverlayWinStub()]
     overlay._grab_window = None
-    overlay._activate_window = lambda win: None
+    activated: list[object] = []
+    overlay._activate_window = lambda win: activated.append(win)
 
     overlay._claim_keyboard_focus()
 
     assert overlay._grab_window is overlay.windows[0]
-    assert overlay.windows[0].update_calls == 1
+    assert activated == [overlay.windows[0]]
     assert overlay.windows[0].grab_set_global_calls == 1
-    assert overlay.windows[0].focus_calls == 1
 
 
 def test_overlay_schedule_activation_refresh_retries_until_budget_exhausted() -> None:
@@ -156,6 +156,7 @@ def test_overlay_request_skip_once_only_calls_handler_once() -> None:
 
 def test_overlay_start_escape_monitor_spawns_windows_poll_thread(monkeypatch) -> None:
     overlay = OverlayWindow.__new__(OverlayWindow)
+    overlay.master = OverlayMasterStub()
     overlay._escape_monitor_stop = None
     overlay._stop_escape_monitor = lambda: None
 
@@ -176,3 +177,4 @@ def test_overlay_start_escape_monitor_spawns_windows_poll_thread(monkeypatch) ->
     assert overlay._escape_monitor_stop is not None
     assert len(started) == 1
     assert started[0][1] is True
+    assert started[0][0][1] is overlay.master

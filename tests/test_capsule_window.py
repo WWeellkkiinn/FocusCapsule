@@ -58,7 +58,7 @@ def test_capsule_drag_only_reports_position_on_release() -> None:
     capsule._drag_root_y = 500
     capsule._drag_moved = False
     capsule._restart_enabled = False
-    capsule._suppress_release_once = False
+    capsule._release_suppressed_until_next_press = False
     capsule._pending_click_job = None
     capsule._on_position_change = lambda x, y: reported.append((x, y))
     current_position = {"x": 130, "y": 260}
@@ -107,6 +107,7 @@ def test_capsule_ctrl_click_suppresses_following_release_restart() -> None:
     capsule._restart_enabled = True
     capsule._start_enabled = False
     capsule._drag_moved = False
+    capsule._release_suppressed_until_next_press = False
     finish_calls: list[str] = []
     restart_calls: list[str] = []
     capsule._cancel_pending_click = lambda: None
@@ -125,7 +126,7 @@ def test_capsule_ctrl_click_still_suppresses_release_after_finished_state_transi
     capsule._restart_enabled = False
     capsule._start_enabled = False
     capsule._drag_moved = False
-    capsule._suppress_release_once = False
+    capsule._release_suppressed_until_next_press = False
     capsule._cancel_pending_click = lambda: None
     capsule.time_var = type("Var", (), {"set": lambda self, value: None})()
     capsule.time_label = type("Label", (), {"configure": lambda self, **kwargs: None})()
@@ -148,4 +149,4 @@ def test_capsule_ctrl_click_still_suppresses_release_after_finished_state_transi
     assert restart_calls == []
 
     CapsuleWindow._start_drag(capsule, type("Event", (), {"x_root": 1, "y_root": 2})())
-    assert capsule._suppress_release_once is False
+    assert capsule._release_suppressed_until_next_press is False

@@ -158,7 +158,7 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._drag_moved = False
         self._restart_enabled = False
         self._start_enabled = False
-        self._suppress_release_once = False
+        self._release_suppressed_until_next_press = False
         self._pending_click_job = None
 
         frame = ctk.CTkFrame(self, corner_radius=16, fg_color="#FFFFFF", border_width=1, border_color="#D7DEE8")
@@ -207,7 +207,7 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._drag_root_x = event.x_root
         self._drag_root_y = event.y_root
         self._drag_moved = False
-        self._suppress_release_once = False
+        self._release_suppressed_until_next_press = False
 
     def _on_drag(self, event) -> None:
         x, y = compute_drag_position(
@@ -225,7 +225,7 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._position_initialized = True
 
     def _on_left_release(self, _event) -> str | None:
-        if self._suppress_release_once:
+        if self._release_suppressed_until_next_press:
             return "break"
         if self._drag_moved:
             if callable(self._on_position_change):
@@ -242,13 +242,13 @@ class CapsuleWindow(ctk.CTkToplevel):
 
     def _on_double_click(self, _event) -> str:
         self._cancel_pending_click()
-        self._suppress_release_once = True
+        self._release_suppressed_until_next_press = True
         self._show_main()
         return "break"
 
     def _on_ctrl_click(self, _event) -> str:
         self._cancel_pending_click()
-        self._suppress_release_once = True
+        self._release_suppressed_until_next_press = True
         self._finish_focus()
         return "break"
 
