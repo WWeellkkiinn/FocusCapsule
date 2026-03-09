@@ -75,6 +75,7 @@ class CapsuleStub:
         self.default_position_args: list[tuple[int, int] | None] = []
         self.updated: list[tuple[int, int]] = []
         self.finished_state_calls = 0
+        self.idle_state_calls = 0
         self.hwnd = 9527
         self.call_order: list[str] = []
 
@@ -107,6 +108,9 @@ class CapsuleStub:
     def show_finished_state(self) -> None:
         self.finished_state_calls += 1
 
+    def show_idle_state(self) -> None:
+        self.idle_state_calls += 1
+
     def native_handle(self) -> int:
         return self.hwnd
 
@@ -115,9 +119,13 @@ class OverlayStub:
     def __init__(self) -> None:
         self.hide_calls = 0
         self.show_calls: list[dict] = []
+        self.masters: list[object] = []
 
     def hide(self) -> None:
         self.hide_calls += 1
+
+    def set_master(self, master) -> None:
+        self.masters.append(master)
 
     def show(self, seconds: int, title: str, hint: str) -> None:
         self.show_calls.append({"seconds": seconds, "title": title, "hint": hint})
@@ -181,6 +189,21 @@ def test_app_window_mode_switching_covers_main_and_capsule_paths() -> None:
     assert already_capsule.capsule.state() == "normal"
 
 
+def test_app_show_main_window_uses_config_view_when_idle(monkeypatch) -> None:
+    app = build_app(state=SessionState.IDLE, capsule_state="normal")
+    app.config = SessionConfig(start_mode="capsule")
+    saved_configs: list[SessionConfig] = []
+    monkeypatch.setattr("focuscapsule.app.save_config", lambda config: saved_configs.append(config))
+    app.current_mode = "capsule"
+
+    app.show_main_window()
+
+    assert app.current_mode == "main"
+    assert app.capsule.state() == "withdrawn"
+    assert app.main_window.config_view_calls == 1
+    assert saved_configs[-1].start_mode == "main"
+
+
 def test_app_start_session_covers_mode_seed_and_saved_position_preservation(monkeypatch) -> None:
     app = build_app(state=SessionState.IDLE)
     app.config = SessionConfig(capsule_x=-1280, capsule_y=88)
@@ -220,6 +243,17 @@ def test_app_close_and_finish_paths_cover_config_and_capsule_end_states(monkeypa
     assert close_app.main_window.config_status_messages == ["已完成"]
     assert close_app.main_window.after_cancel_calls == ["job-1"]
     assert close_alerts == [True]
+
+    capsule_close_app = build_app(capsule_state="normal")
+    capsule_close_app.current_mode = "capsule"
+    capsule_alerts: list[bool] = []
+    monkeypatch.setattr("focuscapsule.app.play_triple_alert", lambda enabled: capsule_alerts.append(enabled))
+    capsule_close_app._close_session("已完成")
+    assert capsule_close_app.runtime.state == SessionState.FINISHED
+    assert capsule_close_app.overlay.hide_calls == 1
+    assert capsule_close_app.capsule.finished_state_calls == 1
+    assert capsule_close_app.main_window.withdraw_calls == 1
+    assert capsule_alerts == [True]
 
 
 def test_app_finished_capsule_paths_cover_show_main_and_restart(monkeypatch) -> None:
@@ -289,20 +323,24 @@ def test_app_virtual_desktop_sync_is_rate_limited_and_forceable(monkeypatch) -> 
     assert app._virtual_desktop.synced_hwnds == [9527, 9527, 9527]
 
 
-def test_app_shutdown_releases_virtual_desktop_controller() -> None:
+def test_app_shutdown_releases_virtual_desktop_controller(monkeypatch) -> None:
     app = build_app(capsule_state="normal")
     destroyed = {"called": 0}
+    saved_configs: list[SessionConfig] = []
 
     def destroy_capsule() -> None:
         destroyed["called"] += 1
 
     app.capsule.destroy = destroy_capsule
     app.main_window.destroy = lambda: None
+    app.main_window.selected_start_mode = lambda: "capsule"
+    monkeypatch.setattr("focuscapsule.app.save_config", lambda config: saved_configs.append(config))
 
     app._shutdown()
 
     assert destroyed["called"] == 1
     assert app._virtual_desktop.close_calls == 1
+    assert saved_configs[-1].start_mode == "capsule"
 
 
 def test_app_rest_transition_paths_cover_overlay_and_sound(monkeypatch) -> None:
@@ -313,6 +351,9 @@ def test_app_rest_transition_paths_cover_overlay_and_sound(monkeypatch) -> None:
     enter_app.enter_micro_rest()
     assert enter_app.runtime.state == SessionState.MICRO_RESTING
     assert enter_app.timer.enter_rest_calls == 1
+    assert enter_app.main_window.session_view_calls == 1
+    assert enter_app.main_window.deiconify_calls == 1
+    assert enter_app.overlay.masters == [enter_app.main_window]
     assert enter_app.overlay.show_calls == [
         {
             "seconds": enter_app.config.break_seconds,
@@ -333,6 +374,17 @@ def test_app_rest_transition_paths_cover_overlay_and_sound(monkeypatch) -> None:
     assert exit_app.timer.exit_rest_calls == 1
     assert exit_alerts == [True]
 
+    capsule_enter_app = build_app(capsule_state="normal")
+    capsule_enter_app.current_mode = "capsule"
+    capsule_alerts: list[bool] = []
+    monkeypatch.setattr("focuscapsule.app.play_double_alert", lambda enabled: capsule_alerts.append(enabled))
+    monkeypatch.setattr(capsule_enter_app, "_schedule_tick", lambda: None)
+    capsule_enter_app.enter_micro_rest()
+    assert capsule_enter_app.capsule.withdraw_calls == 0
+    assert capsule_enter_app.main_window.deiconify_calls == 0
+    assert capsule_enter_app.overlay.masters == [capsule_enter_app.capsule]
+    assert capsule_alerts == [True]
+
 
 def test_app_finish_rest_paths_cover_enter_skip_and_timeout(monkeypatch) -> None:
     finish_app = build_app(state=SessionState.FOCUSING, capsule_state="normal")
@@ -345,11 +397,10 @@ def test_app_finish_rest_paths_cover_enter_skip_and_timeout(monkeypatch) -> None
 
     assert finish_app.runtime.state == SessionState.FINISH_RESTING
     assert finish_app.runtime.focus_remaining_sec == 0
-    assert finish_app.current_mode == "main"
-    assert finish_app.capsule.state() == "withdrawn"
-    assert finish_app.main_window.session_view_calls == 1
-    assert finish_app.main_window.lift_calls == 0
-    assert finish_app.main_window.focus_calls == 0
+    assert finish_app.current_mode == "capsule"
+    assert finish_app.main_window.session_view_calls == 0
+    assert finish_app.main_window.deiconify_calls == 0
+    assert finish_app.overlay.masters == [finish_app.capsule]
     assert finish_app.overlay.show_calls == [
         {
             "seconds": finish_app.config.finish_break_minutes * 60,
@@ -409,3 +460,14 @@ def test_app_end_session_early_delegates_to_skip_rest_during_rest_states(monkeyp
 
     assert skipped == ["skip"]
     assert closed == []
+
+
+def test_app_start_idle_capsule_session_uses_saved_capsule_mode(monkeypatch) -> None:
+    app = build_app(state=SessionState.IDLE)
+    app.current_mode = "capsule"
+    started: list[SessionConfig] = []
+    monkeypatch.setattr(app, "start_session", lambda config: started.append(config))
+
+    app.start_idle_capsule_session()
+
+    assert started[0].start_mode == "capsule"

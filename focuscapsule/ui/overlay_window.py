@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import customtkinter as ctk
+import sys
+import threading
 
 OVERLAY_BG_COLOR = "#000000"
 OVERLAY_TITLE_COLOR = "#F8FAFC"
 OVERLAY_COUNTDOWN_COLOR = "#FFFFFF"
 OVERLAY_HINT_COLOR = "#DCE7F5"
 OVERLAY_ALPHA = 0.80
+ESCAPE_VK = 0x1B
 
 
 def _build_geometry(width: int, height: int, x: int, y: int) -> str:
@@ -35,9 +38,16 @@ class OverlayWindow:
         self._master_escape_bind_id: str | None = None
         self._activation_job = None
         self._grab_window: ctk.CTkToplevel | None = None
+        self._activation_attempts_remaining = 0
+        self._escape_monitor_stop: threading.Event | None = None
+        self._skip_requested = False
+
+    def set_master(self, master) -> None:
+        self.master = master
 
     def show(self, seconds: int, title: str, hint: str) -> None:
         self.hide()
+        self._skip_requested = False
         self.countdown_var.set(_format_countdown(seconds))
         self.title_var.set(title)
         self.hint_var.set(hint)
@@ -84,9 +94,10 @@ class OverlayWindow:
             self.windows.append(win)
 
         self._bind_master_escape()
+        self._activation_attempts_remaining = 6
         self._claim_keyboard_focus()
-        self._activate_windows()
-        self._activation_job = self.master.after(80, self._activate_windows)
+        self._start_escape_monitor()
+        self._schedule_activation_refresh()
 
     def update_countdown(self, seconds: int) -> None:
         self.countdown_var.set(_format_countdown(seconds))
@@ -98,12 +109,14 @@ class OverlayWindow:
             except Exception:
                 pass
             self._activation_job = None
+        self._activation_attempts_remaining = 0
         if self._master_escape_bind_id is not None:
             try:
                 self.master.unbind("<Escape>", self._master_escape_bind_id)
             except Exception:
                 pass
             self._master_escape_bind_id = None
+        self._stop_escape_monitor()
         if self._grab_window is not None:
             try:
                 self._grab_window.grab_release()
@@ -118,7 +131,7 @@ class OverlayWindow:
         self.windows.clear()
 
     def _handle_escape(self, _event=None) -> str:
-        self.on_skip()
+        self._request_skip_once()
         return "break"
 
     def _bind_master_escape(self) -> None:
@@ -128,16 +141,98 @@ class OverlayWindow:
         if not self.windows:
             return
         self._grab_window = self.windows[0]
+        self._activate_window(self._grab_window)
         try:
-            self._grab_window.update_idletasks()
+            self._grab_window.grab_set_global()
+        except Exception:
+            try:
+                self._grab_window.grab_set()
+            except Exception:
+                pass
+
+    def _schedule_activation_refresh(self) -> None:
+        self._activate_windows()
+        if self._activation_attempts_remaining <= 0:
+            self._activation_job = None
+            return
+        self._activation_attempts_remaining -= 1
+        self._activation_job = self.master.after(120, self._schedule_activation_refresh)
+
+    def _request_skip_once(self) -> None:
+        if self._skip_requested:
+            return
+        self._skip_requested = True
+        self.on_skip()
+
+    def _start_escape_monitor(self) -> None:
+        self._stop_escape_monitor()
+        if sys.platform != "win32":
+            return
+        stop_event = threading.Event()
+        self._escape_monitor_stop = stop_event
+        master = self.master
+        try:
+            threading.Thread(
+                target=self._poll_escape_key,
+                args=(stop_event, master),
+                daemon=True,
+            ).start()
+        except Exception:
+            self._escape_monitor_stop = None
+
+    def _stop_escape_monitor(self) -> None:
+        if self._escape_monitor_stop is None:
+            return
+        self._escape_monitor_stop.set()
+        self._escape_monitor_stop = None
+
+    def _poll_escape_key(self, stop_event: threading.Event, master) -> None:
+        try:
+            import ctypes
+
+            user32 = ctypes.windll.user32
+        except Exception:
+            return
+
+        while not stop_event.wait(0.03):
+            try:
+                if user32.GetAsyncKeyState(ESCAPE_VK) & 0x1:
+                    master.after(0, self._request_skip_once)
+                    return
+            except Exception:
+                return
+
+    def _activate_window(self, win) -> None:
+        try:
+            win.update_idletasks()
         except Exception:
             pass
         try:
-            self._grab_window.grab_set()
+            win.lift()
         except Exception:
             pass
         try:
-            self._grab_window.focus_force()
+            win.attributes("-topmost", True)
+        except Exception:
+            pass
+        try:
+            win.focus_set()
+        except Exception:
+            pass
+        try:
+            win.focus_force()
+        except Exception:
+            pass
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+
+            user32 = ctypes.windll.user32
+            hwnd = int(win.winfo_id())
+            user32.BringWindowToTop(hwnd)
+            user32.SetForegroundWindow(hwnd)
+            user32.SetActiveWindow(hwnd)
         except Exception:
             pass
 
@@ -148,22 +243,7 @@ class OverlayWindow:
                     continue
             except Exception:
                 continue
-            try:
-                win.update_idletasks()
-            except Exception:
-                pass
-            try:
-                win.lift()
-            except Exception:
-                pass
-            try:
-                win.attributes("-topmost", True)
-            except Exception:
-                pass
-            try:
-                win.focus_force()
-            except Exception:
-                pass
+            self._activate_window(win)
 
     def _screen_specs(self) -> list[tuple[int, int, int, int]]:
         try:

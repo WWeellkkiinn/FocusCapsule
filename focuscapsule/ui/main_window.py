@@ -55,7 +55,13 @@ def compute_window_outer_size(
 
 
 class MainSettingsWindow(ctk.CTk):
-    def __init__(self, on_start, on_switch_to_capsule=None, on_end_session=None) -> None:
+    def __init__(
+        self,
+        on_start,
+        on_switch_to_capsule=None,
+        on_end_session=None,
+        on_start_mode_change=None,
+    ) -> None:
         super().__init__()
         self.title("FocusCapsule")
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
@@ -64,6 +70,7 @@ class MainSettingsWindow(ctk.CTk):
         self.on_start = on_start
         self.on_switch_to_capsule = on_switch_to_capsule
         self.on_end_session = on_end_session
+        self.on_start_mode_change = on_start_mode_change
 
         self.total_minutes_var = ctk.StringVar(value="25")
         self.interval_min_var = ctk.StringVar(value="3")
@@ -347,6 +354,7 @@ class MainSettingsWindow(ctk.CTk):
 
     def _bind_preview_updates(self) -> None:
         self.total_minutes_var.trace_add("write", self._on_total_minutes_changed)
+        self.capsule_mode_var.trace_add("write", self._on_capsule_mode_changed)
         self._update_preview_countdown()
 
     def _show_view(self, view: ctk.CTkFrame) -> None:
@@ -356,6 +364,16 @@ class MainSettingsWindow(ctk.CTk):
 
     def _on_total_minutes_changed(self, *_args) -> None:
         self._update_preview_countdown()
+
+    def _on_capsule_mode_changed(self, *_args) -> None:
+        self._emit_capsule_mode_change()
+
+    def _emit_capsule_mode_change(self) -> None:
+        if callable(self.on_start_mode_change):
+            self.on_start_mode_change("capsule" if bool(self.capsule_mode_var.get()) else "main")
+
+    def selected_start_mode(self) -> str:
+        return "capsule" if bool(self.capsule_mode_var.get()) else "main"
 
     def _update_preview_countdown(self) -> None:
         self.countdown_var.set(format_minutes_preview(self.total_minutes_var.get()))
