@@ -54,6 +54,7 @@ class OverlayWinStub:
         self.destroy_calls = 0
         self.update_calls = 0
         self.grab_set_calls = 0
+        self.grab_set_global_calls = 0
         self.grab_release_calls = 0
 
     def winfo_exists(self) -> bool:
@@ -73,6 +74,9 @@ class OverlayWinStub:
 
     def grab_set(self) -> None:
         self.grab_set_calls += 1
+
+    def grab_set_global(self) -> None:
+        self.grab_set_global_calls += 1
 
     def grab_release(self) -> None:
         self.grab_release_calls += 1
@@ -100,6 +104,7 @@ def test_overlay_hide_cleans_bindings_jobs_and_windows() -> None:
     overlay._master_escape_bind_id = "bind-1"
     overlay._activation_job = "after-1"
     overlay._grab_window = overlay.windows[0]
+    overlay._escape_monitor_stop = None
 
     overlay.hide()
 
@@ -113,10 +118,61 @@ def test_overlay_claim_keyboard_focus_prefers_first_window() -> None:
     overlay = OverlayWindow.__new__(OverlayWindow)
     overlay.windows = [OverlayWinStub(), OverlayWinStub()]
     overlay._grab_window = None
+    overlay._activate_window = lambda win: None
 
     overlay._claim_keyboard_focus()
 
     assert overlay._grab_window is overlay.windows[0]
     assert overlay.windows[0].update_calls == 1
-    assert overlay.windows[0].grab_set_calls == 1
+    assert overlay.windows[0].grab_set_global_calls == 1
     assert overlay.windows[0].focus_calls == 1
+
+
+def test_overlay_schedule_activation_refresh_retries_until_budget_exhausted() -> None:
+    overlay = OverlayWindow.__new__(OverlayWindow)
+    overlay.master = OverlayMasterStub()
+    overlay._activation_attempts_remaining = 1
+    activate_calls: list[str] = []
+    overlay._activate_windows = lambda: activate_calls.append("tick")
+
+    overlay._schedule_activation_refresh()
+
+    assert activate_calls == ["tick"]
+    assert overlay._activation_attempts_remaining == 0
+    assert overlay._activation_job == "after-1"
+
+
+def test_overlay_request_skip_once_only_calls_handler_once() -> None:
+    calls: list[str] = []
+    overlay = OverlayWindow.__new__(OverlayWindow)
+    overlay._skip_requested = False
+    overlay.on_skip = lambda: calls.append("skip")
+
+    overlay._request_skip_once()
+    overlay._request_skip_once()
+
+    assert calls == ["skip"]
+
+
+def test_overlay_start_escape_monitor_spawns_windows_poll_thread(monkeypatch) -> None:
+    overlay = OverlayWindow.__new__(OverlayWindow)
+    overlay._escape_monitor_stop = None
+    overlay._stop_escape_monitor = lambda: None
+
+    started: list[tuple[tuple, bool]] = []
+
+    class ThreadStub:
+        def __init__(self, target, args=(), daemon=None) -> None:
+            started.append((args, bool(daemon)))
+
+        def start(self) -> None:
+            return None
+
+    monkeypatch.setattr("focuscapsule.ui.overlay_window.sys.platform", "win32")
+    monkeypatch.setattr("focuscapsule.ui.overlay_window.threading.Thread", ThreadStub)
+
+    overlay._start_escape_monitor()
+
+    assert overlay._escape_monitor_stop is not None
+    assert len(started) == 1
+    assert started[0][1] is True

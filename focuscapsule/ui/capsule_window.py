@@ -9,6 +9,7 @@ DEFAULT_CAPSULE_HEIGHT = 72
 ACTIVE_TIME_FONT = ("Consolas", 24)
 FINISHED_TIME_FONT = ("Microsoft YaHei", 13, "bold")
 FINISHED_TEXT = "专注结束，点击重启"
+IDLE_TEXT = "点击开始专注"
 SCREEN_MARGIN = 24
 
 
@@ -134,6 +135,7 @@ class CapsuleWindow(ctk.CTkToplevel):
         on_finish_focus=None,
         on_show_main=None,
         on_restart_focus=None,
+        on_start_focus=None,
         on_position_change=None,
     ) -> None:
         super().__init__(master)
@@ -147,6 +149,7 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._on_finish_focus = on_finish_focus
         self._on_show_main = on_show_main
         self._on_restart_focus = on_restart_focus
+        self._on_start_focus = on_start_focus
         self._on_position_change = on_position_change
 
         self.time_var = ctk.StringVar(value="00:00")
@@ -154,6 +157,8 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._drag_root_y = 0
         self._drag_moved = False
         self._restart_enabled = False
+        self._start_enabled = False
+        self._suppress_release_once = False
         self._pending_click_job = None
 
         frame = ctk.CTkFrame(self, corner_radius=16, fg_color="#FFFFFF", border_width=1, border_color="#D7DEE8")
@@ -202,6 +207,7 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._drag_root_x = event.x_root
         self._drag_root_y = event.y_root
         self._drag_moved = False
+        self._suppress_release_once = False
 
     def _on_drag(self, event) -> None:
         x, y = compute_drag_position(
@@ -219,23 +225,30 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._position_initialized = True
 
     def _on_left_release(self, _event) -> str | None:
+        if self._suppress_release_once:
+            return "break"
         if self._drag_moved:
             if callable(self._on_position_change):
                 self._on_position_change(self.winfo_x(), self.winfo_y())
             return None
-        if not self._restart_enabled:
+        if not (self._restart_enabled or self._start_enabled):
             return None
         self._cancel_pending_click()
-        self._pending_click_job = self.after(220, self._restart_focus)
+        if self._restart_enabled:
+            self._pending_click_job = self.after(220, self._restart_focus)
+        else:
+            self._pending_click_job = self.after(220, self._start_focus)
         return "break"
 
     def _on_double_click(self, _event) -> str:
         self._cancel_pending_click()
+        self._suppress_release_once = True
         self._show_main()
         return "break"
 
     def _on_ctrl_click(self, _event) -> str:
         self._cancel_pending_click()
+        self._suppress_release_once = True
         self._finish_focus()
         return "break"
 
@@ -269,6 +282,11 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._pending_click_job = None
         if callable(self._on_restart_focus):
             self._on_restart_focus()
+
+    def _start_focus(self) -> None:
+        self._pending_click_job = None
+        if callable(self._on_start_focus):
+            self._on_start_focus()
 
     def set_default_position(
         self,
@@ -308,14 +326,24 @@ class CapsuleWindow(ctk.CTkToplevel):
     def update_view(self, remaining_sec: int, total_sec: int) -> None:
         self._cancel_pending_click()
         self._restart_enabled = False
+        self._start_enabled = False
         self.time_var.set(self._fmt(remaining_sec))
         self.time_label.configure(font=ACTIVE_TIME_FONT)
         ratio = 1.0 if total_sec == 0 else max(0.0, min(1.0, 1 - remaining_sec / total_sec))
         self.progress.set(ratio)
 
+    def show_idle_state(self) -> None:
+        self._cancel_pending_click()
+        self._restart_enabled = False
+        self._start_enabled = True
+        self.time_var.set(IDLE_TEXT)
+        self.time_label.configure(font=FINISHED_TIME_FONT)
+        self.progress.set(0.0)
+
     def show_finished_state(self) -> None:
         self._cancel_pending_click()
         self._restart_enabled = True
+        self._start_enabled = False
         self.time_var.set(FINISHED_TEXT)
         self.time_label.configure(font=FINISHED_TIME_FONT)
         self.progress.set(1.0)

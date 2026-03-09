@@ -72,3 +72,21 @@ def test_main_window_set_form_writes_finish_break_minutes() -> None:
     MainSettingsWindow.set_form(window, SessionConfig(finish_break_minutes=9))
 
     assert values == ["9"]
+
+
+def test_main_window_capsule_mode_change_notifies_owner() -> None:
+    notified: list[str] = []
+    window = MainSettingsWindow.__new__(MainSettingsWindow)
+    window.on_start_mode_change = lambda mode: notified.append(mode)
+    window.capsule_mode_var = type("Var", (), {"get": lambda self: True})()
+
+    MainSettingsWindow._on_capsule_mode_changed(window)
+
+    assert notified == ["capsule"]
+
+
+def test_main_window_selected_start_mode_reflects_capsule_switch() -> None:
+    window = MainSettingsWindow.__new__(MainSettingsWindow)
+    window.capsule_mode_var = type("Var", (), {"get": lambda self: False})()
+
+    assert MainSettingsWindow.selected_start_mode(window) == "main"

@@ -39,6 +39,7 @@ class FocusCapsuleApp:
             self.start_session,
             on_switch_to_capsule=self.switch_to_capsule_mode,
             on_end_session=self.end_session_early,
+            on_start_mode_change=self._set_start_mode,
         )
         self.main_window.set_form(self.config)
         self.main_window.protocol("WM_DELETE_WINDOW", self._shutdown)
@@ -50,6 +51,7 @@ class FocusCapsuleApp:
         self._last_finish_message = "本次专注已完成。"
         self._virtual_desktop = VirtualDesktopController()
         self._last_virtual_desktop_sync_at = 0.0
+        self._apply_idle_display_mode()
 
     def run(self) -> None:
         self.main_window.mainloop()
@@ -107,6 +109,7 @@ class FocusCapsuleApp:
                 on_finish_focus=self.end_session_early,
                 on_show_main=self.show_main_window,
                 on_restart_focus=self.restart_finished_session,
+                on_start_focus=self.start_idle_capsule_session,
                 on_position_change=self.remember_capsule_position,
             )
             self.capsule.withdraw()
@@ -134,8 +137,32 @@ class FocusCapsuleApp:
             self.runtime.focus_total_sec,
         )
 
+    def _set_start_mode(self, mode: str) -> None:
+        normalized = normalize_start_mode(mode)
+        if self.config.start_mode == normalized:
+            return
+        self.config = dataclasses.replace(self.config, start_mode=normalized)
+        self._try_save_config(self.config)
+
+    def _apply_idle_display_mode(self) -> None:
+        if self.current_mode == "capsule":
+            capsule = self._ensure_capsule()
+            capsule.set_default_position(preferred_position=self._validated_capsule_position())
+            capsule.show_idle_state()
+            capsule.deiconify()
+            capsule.attributes("-topmost", True)
+            self.main_window.withdraw()
+            self._sync_capsule_virtual_desktop(force=True)
+            return
+        self.main_window.show_config_view()
+        self.main_window.deiconify()
+        self.main_window.lift()
+        self.main_window.focus_force()
+        self._hide_capsule()
+
     def _show_main_mode(self) -> None:
         self.current_mode = "main"
+        self._set_start_mode("main")
         self._hide_capsule()
         self.main_window.show_session_view()
         self.main_window.deiconify()
@@ -144,6 +171,7 @@ class FocusCapsuleApp:
 
     def _show_capsule_mode(self) -> None:
         self.current_mode = "capsule"
+        self._set_start_mode("capsule")
         self.main_window.withdraw()
         self._show_capsule()
 
@@ -252,17 +280,35 @@ class FocusCapsuleApp:
     def _finish_break_seconds(self) -> int:
         return self.config.finish_break_minutes * 60
 
+    def _prepare_overlay_master(self) -> None:
+        if self.current_mode == "capsule":
+            self.overlay.set_master(self._ensure_capsule())
+            return
+        self.overlay.set_master(self.main_window)
+
+    def _show_rest_host(self, remaining_sec: int, status_text: str) -> None:
+        if self.current_mode == "capsule":
+            capsule = self._ensure_capsule()
+            capsule.deiconify()
+            capsule.attributes("-topmost", True)
+            return
+        self.main_window.show_session_view()
+        self.main_window.deiconify()
+        self._refresh_main_session_view(
+            remaining_sec,
+            status_text=status_text,
+            switch_enabled=False,
+        )
+
     def enter_micro_rest(self) -> None:
         self.runtime.state = SessionState.MICRO_RESTING
         self.runtime.break_remaining_sec = self.config.break_seconds
         self.timer.enter_rest()
-        self._hide_capsule()
-        if self.current_mode == "main":
-            self._refresh_main_session_view(
-                self.runtime.focus_remaining_sec,
-                status_text=self._micro_rest_status_text(self.config.break_seconds),
-                switch_enabled=False,
-            )
+        self._show_rest_host(
+            self.runtime.focus_remaining_sec,
+            self._micro_rest_status_text(self.config.break_seconds),
+        )
+        self._prepare_overlay_master()
         self.overlay.show(
             self.runtime.break_remaining_sec,
             title="微休息时间：请转动脖子、闭眼深呼吸",
@@ -290,15 +336,11 @@ class FocusCapsuleApp:
         self.runtime.focus_remaining_sec = 0
         self.runtime.break_remaining_sec = self._finish_break_seconds()
         self.timer.enter_rest()
-        self.current_mode = "main"
-        self._hide_capsule()
-        self.main_window.show_session_view()
-        self.main_window.deiconify()
-        self._refresh_main_session_view(
+        self._show_rest_host(
             0,
-            status_text=self._finish_rest_status_text(self.runtime.break_remaining_sec),
-            switch_enabled=False,
+            self._finish_rest_status_text(self.runtime.break_remaining_sec),
         )
+        self._prepare_overlay_master()
         self.overlay.show(
             self.runtime.break_remaining_sec,
             title="专注结束：请离开屏幕，放松休息",
@@ -335,20 +377,35 @@ class FocusCapsuleApp:
         self.overlay.hide()
         self.timer.exit_rest()
         self.runtime.break_remaining_sec = 0
-        self._hide_capsule()
-        self.current_mode = normalize_start_mode(self.config.start_mode)
-        self.main_window.show_config_view(status_message=message)
-        self.main_window.deiconify()
-        self.main_window.lift()
-        self.main_window.focus_force()
+        if self.current_mode == "capsule":
+            capsule = self._ensure_capsule()
+            capsule.show_finished_state()
+            capsule.deiconify()
+            capsule.attributes("-topmost", True)
+            self.main_window.withdraw()
+            self._sync_capsule_virtual_desktop(force=True)
+        else:
+            self._hide_capsule()
+            self.main_window.show_config_view(status_message=message)
+            self.main_window.deiconify()
+            self.main_window.lift()
+            self.main_window.focus_force()
         if play_sound:
             play_triple_alert(self.config.sound_enabled)
 
     def show_main_window(self) -> None:
+        self.current_mode = "main"
+        self._set_start_mode("main")
         if self.runtime.state == SessionState.FINISHED:
-            self.current_mode = "main"
             self._hide_capsule()
             self.main_window.show_config_view(status_message=self._last_finish_message)
+            self.main_window.deiconify()
+            self.main_window.lift()
+            self.main_window.focus_force()
+            return
+        if self.runtime.state == SessionState.IDLE:
+            self._hide_capsule()
+            self.main_window.show_config_view()
             self.main_window.deiconify()
             self.main_window.lift()
             self.main_window.focus_force()
@@ -361,6 +418,11 @@ class FocusCapsuleApp:
             return
         restart_config = dataclasses.replace(self.config, start_mode="capsule")
         self.start_session(restart_config)
+
+    def start_idle_capsule_session(self) -> None:
+        if self.runtime.state != SessionState.IDLE:
+            return
+        self.start_session(dataclasses.replace(self.config, start_mode="capsule"))
 
     def remember_capsule_position(self, x: int, y: int) -> None:
         if self.config.capsule_x == int(x) and self.config.capsule_y == int(y):
@@ -434,6 +496,10 @@ class FocusCapsuleApp:
         if self.tick_job is not None:
             self.main_window.after_cancel(self.tick_job)
             self.tick_job = None
+        try:
+            self._set_start_mode(self.main_window.selected_start_mode())
+        except Exception:
+            pass
         self.overlay.hide()
         if self.capsule and self.capsule.winfo_exists():
             self.capsule.destroy()
