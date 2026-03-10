@@ -150,3 +150,12 @@ def test_capsule_ctrl_click_still_suppresses_release_after_finished_state_transi
 
     CapsuleWindow._start_drag(capsule, type("Event", (), {"x_root": 1, "y_root": 2})())
     assert capsule._release_suppressed_until_next_press is False
+
+
+def test_capsule_alt_f4_triggers_close_callback() -> None:
+    capsule = CapsuleWindow.__new__(CapsuleWindow)
+    close_calls: list[str] = []
+    capsule._on_close = lambda: close_calls.append("close")
+
+    assert CapsuleWindow._on_alt_f4(capsule, None) == "break"
+    assert close_calls == ["close"]

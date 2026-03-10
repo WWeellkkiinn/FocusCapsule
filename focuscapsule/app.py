@@ -111,6 +111,7 @@ class FocusCapsuleApp:
                 on_restart_focus=self.restart_finished_session,
                 on_start_focus=self.start_idle_capsule_session,
                 on_position_change=self.remember_capsule_position,
+                on_close=self._shutdown,
             )
             self.capsule.withdraw()
         return self.capsule

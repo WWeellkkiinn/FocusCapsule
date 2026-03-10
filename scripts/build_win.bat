@@ -15,8 +15,8 @@ set "CHECK_TCL_SCRIPT=scripts\check_tcl.ps1"
 set "SYNC_TCL_SCRIPT=scripts\sync_tcl_runtime.ps1"
 set "APP_ICON=assets\FocusCapsule.ico"
 set "OVERLAY_IMAGE=assets\overlay\rest_overlay.png"
-set "DIST_DIR=dist"
-set "BUILD_DIR=build"
+set "DIST_DIR=dist_staging"
+set "BUILD_DIR=build_staging"
 
 if not exist "%PYTHON_EXE%" (
   echo python not found: %PYTHON_EXE%

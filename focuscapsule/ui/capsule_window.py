@@ -137,6 +137,7 @@ class CapsuleWindow(ctk.CTkToplevel):
         on_restart_focus=None,
         on_start_focus=None,
         on_position_change=None,
+        on_close=None,
     ) -> None:
         super().__init__(master)
         self.overrideredirect(True)
@@ -151,6 +152,7 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._on_restart_focus = on_restart_focus
         self._on_start_focus = on_start_focus
         self._on_position_change = on_position_change
+        self._on_close = on_close
 
         self.time_var = ctk.StringVar(value="00:00")
         self._drag_root_x = 0
@@ -189,6 +191,8 @@ class CapsuleWindow(ctk.CTkToplevel):
         self.progress.grid(row=2, column=0, sticky="ew", padx=28, pady=(0, 0))
 
         self._bind_pointer_events(frame)
+        self.bind("<Alt-F4>", self._on_alt_f4, add="+")
+        self.protocol("WM_DELETE_WINDOW", self._close_app)
 
     def native_handle(self) -> int:
         return int(self.winfo_id())
@@ -287,6 +291,16 @@ class CapsuleWindow(ctk.CTkToplevel):
         self._pending_click_job = None
         if callable(self._on_start_focus):
             self._on_start_focus()
+
+    def _close_app(self) -> None:
+        if callable(self._on_close):
+            self._on_close()
+            return
+        self.destroy()
+
+    def _on_alt_f4(self, _event) -> str:
+        self._close_app()
+        return "break"
 
     def set_default_position(
         self,
