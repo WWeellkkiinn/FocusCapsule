@@ -11,6 +11,7 @@ set "EXPECTED_DLLS=%EXPECTED_PREFIX%\DLLs"
 set "EXPECTED_SCRIPTS=%EXPECTED_PREFIX%\Scripts"
 set "RUNTIME_HOOK=scripts\pyi_rth_tkfix.py"
 set "APP_ICON=assets\FocusCapsule.ico"
+set "OVERLAY_IMAGE=assets\overlay\rest_overlay.png"
 set "DIST_DIR=dist"
 set "BUILD_DIR=build"
 
@@ -25,6 +26,10 @@ if not exist "%RUNTIME_HOOK%" (
 if not exist "%APP_ICON%" (
   echo app icon not found: %APP_ICON%
   exit /b 4
+)
+if not exist "%OVERLAY_IMAGE%" (
+  echo overlay image not found: %OVERLAY_IMAGE%
+  exit /b 7
 )
 
 set "PREFIX_FILE=%TEMP%\focuscapsule_python_prefix.txt"
@@ -55,7 +60,7 @@ if exist FocusCapsule.spec del /f /q FocusCapsule.spec
 "%PYTHON_EXE%" -m pip install -r requirements.txt
 if errorlevel 1 exit /b 1
 
-"%PYTHON_EXE%" -m PyInstaller --clean --noconfirm --onedir --distpath "%DIST_DIR%" --workpath "%BUILD_DIR%" --windowed --runtime-hook "%RUNTIME_HOOK%" --icon "%APP_ICON%" --name FocusCapsule main.py
+"%PYTHON_EXE%" -m PyInstaller --clean --noconfirm --onedir --distpath "%DIST_DIR%" --workpath "%BUILD_DIR%" --windowed --runtime-hook "%RUNTIME_HOOK%" --icon "%APP_ICON%" --add-data "%OVERLAY_IMAGE%;assets\overlay" --name FocusCapsule main.py
 if errorlevel 1 exit /b 1
 
 if exist FocusCapsule.spec del /f /q FocusCapsule.spec

@@ -14,6 +14,8 @@ build/
 dist/
 build_staging/
 dist_staging/
+build_release/
+dist_release/
 *.egg-info/
 .eggs/
 

@@ -3,13 +3,18 @@ from __future__ import annotations
 import customtkinter as ctk
 import sys
 import threading
+from pathlib import Path
+
+from PIL import Image
 
 OVERLAY_BG_COLOR = "#000000"
 OVERLAY_TITLE_COLOR = "#F8FAFC"
 OVERLAY_COUNTDOWN_COLOR = "#FFFFFF"
 OVERLAY_HINT_COLOR = "#DCE7F5"
-OVERLAY_ALPHA = 0.80
+OVERLAY_ALPHA = 0.90
 ESCAPE_VK = 0x1B
+OVERLAY_IMAGE_TARGET_SIZE = 300
+OVERLAY_IMAGE_RELATIVE_PATH = Path("assets") / "overlay" / "rest_overlay.png"
 
 
 def _build_geometry(width: int, height: int, x: int, y: int) -> str:
@@ -27,6 +32,29 @@ def _scale_overlay_size(size: int, pixels_per_inch: float) -> int:
     return max(1, int(round(int(size) * 96.0 / float(pixels_per_inch))))
 
 
+def _resolve_overlay_image_path() -> Path | None:
+    candidates = []
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.extend(
+            [
+                exe_dir / OVERLAY_IMAGE_RELATIVE_PATH,
+                exe_dir / "_internal" / OVERLAY_IMAGE_RELATIVE_PATH,
+            ]
+        )
+    candidates.extend(
+        [
+            Path(__file__).resolve().parents[2] / OVERLAY_IMAGE_RELATIVE_PATH,
+            Path.cwd() / OVERLAY_IMAGE_RELATIVE_PATH,
+        ]
+    )
+
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
 class OverlayWindow:
     def __init__(self, master: ctk.CTk, on_skip) -> None:
         self.master = master
@@ -41,6 +69,7 @@ class OverlayWindow:
         self._activation_attempts_remaining = 0
         self._escape_monitor_stop: threading.Event | None = None
         self._skip_requested = False
+        self._overlay_image: ctk.CTkImage | None = self._load_overlay_image()
 
     def set_master(self, master) -> None:
         self.master = master
@@ -71,6 +100,12 @@ class OverlayWindow:
 
             frame = ctk.CTkFrame(center_layer, fg_color="transparent")
 
+            if self._overlay_image is not None:
+                ctk.CTkLabel(
+                    frame,
+                    text="",
+                    image=self._overlay_image,
+                ).pack(pady=(0, 24))
             ctk.CTkLabel(
                 frame,
                 textvariable=self.title_var,
@@ -163,6 +198,25 @@ class OverlayWindow:
             return
         self._skip_requested = True
         self.on_skip()
+
+    def _load_overlay_image(self) -> ctk.CTkImage | None:
+        image_path = _resolve_overlay_image_path()
+        if image_path is None:
+            return None
+        try:
+            image = Image.open(image_path)
+        except Exception:
+            return None
+
+        width = max(1, image.width)
+        height = max(1, image.height)
+        longest_edge = max(width, height)
+        scale_ratio = OVERLAY_IMAGE_TARGET_SIZE / longest_edge
+        target_size = (
+            max(1, int(round(width * scale_ratio))),
+            max(1, int(round(height * scale_ratio))),
+        )
+        return ctk.CTkImage(light_image=image, dark_image=image, size=target_size)
 
     def _start_escape_monitor(self) -> None:
         self._stop_escape_monitor()
