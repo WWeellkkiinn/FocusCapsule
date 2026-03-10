@@ -55,6 +55,23 @@ def _resolve_overlay_image_path() -> Path | None:
     return None
 
 
+def _compute_overlay_image_size(
+    width: int,
+    height: int,
+    target_long_edge: int,
+) -> tuple[int, int]:
+    width = max(1, int(width))
+    height = max(1, int(height))
+    target_long_edge = max(1, int(target_long_edge))
+
+    longest_edge = max(width, height)
+    scale_ratio = target_long_edge / float(longest_edge)
+    return (
+        max(1, int(round(width * scale_ratio))),
+        max(1, int(round(height * scale_ratio))),
+    )
+
+
 class OverlayWindow:
     def __init__(self, master: ctk.CTk, on_skip) -> None:
         self.master = master
@@ -208,13 +225,10 @@ class OverlayWindow:
         except Exception:
             return None
 
-        width = max(1, image.width)
-        height = max(1, image.height)
-        longest_edge = max(width, height)
-        scale_ratio = OVERLAY_IMAGE_TARGET_SIZE / longest_edge
-        target_size = (
-            max(1, int(round(width * scale_ratio))),
-            max(1, int(round(height * scale_ratio))),
+        target_size = _compute_overlay_image_size(
+            image.width,
+            image.height,
+            OVERLAY_IMAGE_TARGET_SIZE,
         )
         return ctk.CTkImage(light_image=image, dark_image=image, size=target_size)
 

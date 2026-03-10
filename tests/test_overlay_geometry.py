@@ -1,7 +1,9 @@
 from focuscapsule.ui.overlay_window import (
     OverlayWindow,
     _build_geometry,
+    _compute_overlay_image_size,
     _format_countdown,
+    _resolve_overlay_image_path,
     _scale_overlay_size,
 )
 
@@ -21,6 +23,41 @@ def test_overlay_geometry_helpers_cover_signs_and_dpi_scaling() -> None:
     assert geometry == "960x1707-1440+0"
     assert _format_countdown(300) == "05:00"
     assert _format_countdown(9) == "00:09"
+
+
+def test_compute_overlay_image_size_preserves_aspect_ratio() -> None:
+    assert _compute_overlay_image_size(198, 198, 300) == (300, 300)
+    assert _compute_overlay_image_size(600, 300, 300) == (300, 150)
+    assert _compute_overlay_image_size(300, 600, 300) == (150, 300)
+    assert _compute_overlay_image_size(0, 0, 300) == (300, 300)
+
+
+def test_resolve_overlay_image_path_prefers_frozen_internal_bundle(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    exe_dir = tmp_path / "dist" / "FocusCapsule"
+    image_path = exe_dir / "_internal" / "assets" / "overlay" / "rest_overlay.png"
+    image_path.parent.mkdir(parents=True)
+    image_path.write_bytes(b"png")
+
+    monkeypatch.setattr("focuscapsule.ui.overlay_window.sys.frozen", True, raising=False)
+    monkeypatch.setattr("focuscapsule.ui.overlay_window.sys.executable", str(exe_dir / "FocusCapsule.exe"))
+    monkeypatch.setattr("focuscapsule.ui.overlay_window.__file__", str(tmp_path / "src" / "focuscapsule" / "ui" / "overlay_window.py"))
+    monkeypatch.setattr("focuscapsule.ui.overlay_window.Path.cwd", classmethod(lambda cls: tmp_path / "cwd"))
+
+    assert _resolve_overlay_image_path() == image_path
+
+
+def test_resolve_overlay_image_path_returns_none_when_missing(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr("focuscapsule.ui.overlay_window.sys.frozen", False, raising=False)
+    monkeypatch.setattr("focuscapsule.ui.overlay_window.__file__", str(tmp_path / "src" / "focuscapsule" / "ui" / "overlay_window.py"))
+    monkeypatch.setattr("focuscapsule.ui.overlay_window.Path.cwd", classmethod(lambda cls: tmp_path / "cwd"))
+
+    assert _resolve_overlay_image_path() is None
 
 
 class OverlayMasterStub:
