@@ -40,7 +40,7 @@ class BarBridge(QObject):
         super().__init__(parent)
         self._app = app
 
-    def push_snapshot(self, runtime: SessionRuntime, config, settings_open: bool):
+    def push_snapshot(self, runtime: SessionRuntime, config, settings_open: bool = False):
         display_sec = (
             runtime.break_remaining_sec
             if runtime.state in (SessionState.MICRO_RESTING, SessionState.FINISH_RESTING)
@@ -50,7 +50,6 @@ class BarBridge(QObject):
             "state": runtime.state.value,
             "countdown": _format_countdown(display_sec),
             "progress": _compute_progress(runtime),
-            "settingsOpen": settings_open,
             "draft": _config_to_map(config),
         }
         self.snapshotChanged.emit(snap)
@@ -65,10 +64,6 @@ class BarBridge(QObject):
     @pyqtSlot()
     def endSession(self):
         self._app.end_session()
-
-    @pyqtSlot()
-    def toggleSettings(self):
-        self._app.toggle_settings()
 
     @pyqtSlot()
     def quit(self):
