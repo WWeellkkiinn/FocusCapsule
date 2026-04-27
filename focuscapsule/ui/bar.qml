@@ -24,6 +24,8 @@ Window {
     })
     property string errorText: ""
     property bool _prevSettingsOpen: false
+    // scaleFactor is injected by Python (VibeBar-style softened DPI scale)
+    property real sf: (typeof scaleFactor !== "undefined") ? scaleFactor : 1.0
 
     Connections {
         target: bridge
@@ -52,9 +54,9 @@ Window {
         id: container
         anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
 
-        readonly property int barH: 34
-        readonly property int cardH: 292
-        readonly property int gapH: 6
+        readonly property int barH: Math.round(20 * rootWin.sf)
+        readonly property int cardH: Math.round(280 * rootWin.sf)
+        readonly property int gapH: Math.round(6 * rootWin.sf)
         readonly property bool open: rootWin.snap.settingsOpen || false
 
         height: open ? (cardH + gapH + barH) : barH
@@ -72,7 +74,7 @@ Window {
                 right: parent.right
             }
             height: container.cardH
-            radius: 16
+            radius: Math.round(14 * rootWin.sf)
             color: "#1A1D26"
             border { width: 1; color: "#2D3348" }
             opacity: container.open ? 1.0 : 0.0
@@ -80,8 +82,14 @@ Window {
             clip: true
 
             Column {
-                anchors { fill: parent; topMargin: 16; leftMargin: 16; rightMargin: 16; bottomMargin: 12 }
-                spacing: 10
+                anchors {
+                    fill: parent
+                    topMargin: Math.round(14 * rootWin.sf)
+                    leftMargin: Math.round(14 * rootWin.sf)
+                    rightMargin: Math.round(14 * rootWin.sf)
+                    bottomMargin: Math.round(10 * rootWin.sf)
+                }
+                spacing: Math.round(8 * rootWin.sf)
 
                 // Row: 专注时长
                 Row {
@@ -284,21 +292,22 @@ Window {
             id: barBody
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
             height: container.barH
-            radius: 17
+            radius: Math.round(10 * rootWin.sf)
             color: "#15171D"
             border { width: 1; color: "#263041" }
 
             // Progress fill
             Rectangle {
                 id: progressFill
-                anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
-                height: parent.height - 8
+                readonly property int pad: Math.round(3 * rootWin.sf)
+                anchors { left: parent.left; leftMargin: pad; verticalCenter: parent.verticalCenter }
+                height: parent.height - pad * 2
                 width: {
                     var p = rootWin.snap.progress || 0.0
-                    return Math.max(0, (barBody.width - 8) * Math.min(1.0, p))
+                    return Math.max(0, (barBody.width - pad * 2) * Math.min(1.0, p))
                 }
                 Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
-                radius: 11
+                radius: Math.round(8 * rootWin.sf)
                 color: {
                     var s = rootWin.snap.state
                     if (s === "MICRO_RESTING")  return "#F59E0B"
@@ -312,22 +321,22 @@ Window {
             // Countdown
             Text {
                 id: countdownText
-                anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
+                anchors { left: parent.left; leftMargin: Math.round(10 * rootWin.sf); verticalCenter: parent.verticalCenter }
                 text: rootWin.snap.countdown || "--:--"
                 color: "#F0F4FF"
-                font { family: "Consolas"; pixelSize: 14; bold: true }
+                font { family: "Consolas"; pixelSize: Math.round(11 * rootWin.sf); bold: true }
             }
 
             // Status label
             Text {
                 anchors {
-                    left: countdownText.right; leftMargin: 10
-                    right: parent.right; rightMargin: 14
+                    left: countdownText.right; leftMargin: Math.round(7 * rootWin.sf)
+                    right: parent.right; rightMargin: Math.round(8 * rootWin.sf)
                     verticalCenter: parent.verticalCenter
                 }
                 text: stateLabel(rootWin.snap.state)
                 color: "#7A8CA0"
-                font.pixelSize: 12
+                font.pixelSize: Math.round(10 * rootWin.sf)
                 elide: Text.ElideRight
             }
 
@@ -346,7 +355,7 @@ Window {
                 property real _startMouseX: 0
                 property real _startWinX: 0
                 property bool dragging: false
-                property int dragThreshold: 6
+                property int dragThreshold: Math.round(6 * rootWin.sf)
                 onPressed: function(mouse) {
                     _startMouseX = mapToGlobal(mouse.x, mouse.y).x
                     _startWinX = rootWin.x
