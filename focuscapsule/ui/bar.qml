@@ -30,21 +30,18 @@ Window {
         function onErrorChanged(e)    { rootWin.errorText = e }
     }
 
-    // ── Main container anchored to bottom ─────────────────────────────────────
+    // ── Main container ────────────────────────────────────────────────────────
     Item {
         id: container
         anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
 
         readonly property int barH: Math.round(20 * rootWin.sf)
-        readonly property int gapH: Math.round(5 * rootWin.sf)
         property bool open: false
 
-        height: open ? (settingsCard.height + gapH + barH) : barH
-        Behavior on height { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
-
+        // One unified rectangle expands upward — no gap, no transparent seam
+        height: mainRect.height
         onHeightChanged: bridge.setVisibleHeight(height)
 
-        // Hover: expand on enter, collapse 400ms after leave (VibeBar pattern)
         HoverHandler {
             onHoveredChanged: {
                 if (hovered) {
@@ -65,29 +62,34 @@ Window {
                 }
             }
         }
-
         Timer { id: leaveTimer; interval: 400; onTriggered: container.open = false }
 
-        // ── Settings card — height auto-fits column content ───────────────────
+        // Single rounded rectangle — card + bar in one piece, clip hides overflow
         Rectangle {
-            id: settingsCard
-            anchors { bottom: barBody.top; bottomMargin: container.gapH; left: parent.left; right: parent.right }
-            height: col.implicitHeight + Math.round(20 * rootWin.sf)
+            id: mainRect
+            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+            // Height animates between barH and barH+cardCol.implicitHeight+padding
+            readonly property int cardPad: Math.round(20 * rootWin.sf)
+            height: container.open
+                    ? (container.barH + cardPad + cardCol.implicitHeight)
+                    : container.barH
+            Behavior on height { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
             radius: Math.round(10 * rootWin.sf)
             color: "#15171D"
             border { width: 1; color: "#263041" }
-            opacity: container.open ? 1.0 : 0.0
-            Behavior on opacity { NumberAnimation { duration: 180 } }
             clip: true
 
+            // ── Settings content (sits above bar area) ────────────────────────
             Column {
-                id: col
+                id: cardCol
                 anchors {
                     top: parent.top; topMargin: Math.round(10 * rootWin.sf)
                     left: parent.left; leftMargin: Math.round(12 * rootWin.sf)
                     right: parent.right; rightMargin: Math.round(12 * rootWin.sf)
                 }
                 spacing: Math.round(6 * rootWin.sf)
+                opacity: container.open ? 1.0 : 0.0
+                Behavior on opacity { NumberAnimation { duration: 180 } }
 
                 // Row: 专注时长
                 Row {
@@ -191,61 +193,58 @@ Window {
                     }
                 }
             }
-        }
 
-        // ── Progress bar ──────────────────────────────────────────────────────
-        Rectangle {
-            id: barBody
-            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-            height: container.barH
-            radius: Math.round(10 * rootWin.sf)
-            color: "#15171D"
-            border { width: 1; color: "#263041" }
+            // ── Progress bar (always pinned to bottom of mainRect) ────────────
+            Item {
+                id: barArea
+                anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                height: container.barH
 
-            Rectangle {
-                readonly property int pad: Math.round(3 * rootWin.sf)
-                anchors { left: parent.left; leftMargin: pad; verticalCenter: parent.verticalCenter }
-                height: parent.height - pad * 2
-                width: Math.max(0, (barBody.width - pad * 2) * Math.min(1.0, rootWin.snap.progress || 0.0))
-                Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
-                radius: Math.round(8 * rootWin.sf)
-                color: {
-                    var s = rootWin.snap.state
-                    if (s === "MICRO_RESTING" || s === "FINISH_RESTING") return "#F59E0B"
-                    if (s === "FINISHED") return "#10B981"
-                    return "#3B82F6"
+                Rectangle {
+                    readonly property int pad: Math.round(3 * rootWin.sf)
+                    anchors { left: parent.left; leftMargin: pad; verticalCenter: parent.verticalCenter }
+                    height: parent.height - pad * 2
+                    width: Math.max(0, (barArea.width - pad * 2) * Math.min(1.0, rootWin.snap.progress || 0.0))
+                    Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+                    radius: Math.round(8 * rootWin.sf)
+                    color: {
+                        var s = rootWin.snap.state
+                        if (s === "MICRO_RESTING" || s === "FINISH_RESTING") return "#F59E0B"
+                        if (s === "FINISHED") return "#10B981"
+                        return "#3B82F6"
+                    }
+                    Behavior on color { ColorAnimation { duration: 200 } }
                 }
-                Behavior on color { ColorAnimation { duration: 200 } }
-            }
 
-            Text {
-                id: countdownText
-                anchors { left: parent.left; leftMargin: Math.round(10 * rootWin.sf); verticalCenter: parent.verticalCenter }
-                text: rootWin.snap.countdown || "--:--"
-                color: "#F0F4FF"; font { family: "Consolas"; pixelSize: Math.round(11 * rootWin.sf); bold: true }
-            }
-            Text {
-                anchors { left: countdownText.right; leftMargin: Math.round(6 * rootWin.sf); right: parent.right; rightMargin: Math.round(8 * rootWin.sf); verticalCenter: parent.verticalCenter }
-                text: stateLabel(rootWin.snap.state)
-                color: "#7A8CA0"; font.pixelSize: Math.round(10 * rootWin.sf); elide: Text.ElideRight
-            }
-
-            TapHandler { acceptedButtons: Qt.RightButton; onDoubleTapped: bridge.quit() }
-
-            MouseArea {
-                anchors.fill: parent; acceptedButtons: Qt.LeftButton; preventStealing: true
-                cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-                property real _startMouseX: 0; property real _startWinX: 0
-                property bool dragging: false
-                property int dragThreshold: Math.round(6 * rootWin.sf)
-                onPressed:  function(m) { _startMouseX = mapToGlobal(m.x, m.y).x; _startWinX = rootWin.x; dragging = false }
-                onPositionChanged: function(m) {
-                    var dx = mapToGlobal(m.x, m.y).x - _startMouseX
-                    if (!dragging && Math.abs(dx) >= dragThreshold) dragging = true
-                    if (dragging) bridge.moveBarX(_startWinX + dx)
+                Text {
+                    id: countdownText
+                    anchors { left: parent.left; leftMargin: Math.round(10 * rootWin.sf); verticalCenter: parent.verticalCenter }
+                    text: rootWin.snap.countdown || "--:--"
+                    color: "#F0F4FF"; font { family: "Consolas"; pixelSize: Math.round(11 * rootWin.sf); bold: true }
                 }
-                onReleased: function(m) { if (dragging) bridge.saveBarX(rootWin.x); dragging = false }
-                onCanceled: dragging = false
+                Text {
+                    anchors { left: countdownText.right; leftMargin: Math.round(6 * rootWin.sf); right: parent.right; rightMargin: Math.round(8 * rootWin.sf); verticalCenter: parent.verticalCenter }
+                    text: stateLabel(rootWin.snap.state)
+                    color: "#7A8CA0"; font.pixelSize: Math.round(10 * rootWin.sf); elide: Text.ElideRight
+                }
+
+                TapHandler { acceptedButtons: Qt.RightButton; onDoubleTapped: bridge.quit() }
+
+                MouseArea {
+                    anchors.fill: parent; acceptedButtons: Qt.LeftButton; preventStealing: true
+                    cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                    property real _startMouseX: 0; property real _startWinX: 0
+                    property bool dragging: false
+                    property int dragThreshold: Math.round(6 * rootWin.sf)
+                    onPressed:  function(m) { _startMouseX = mapToGlobal(m.x, m.y).x; _startWinX = rootWin.x; dragging = false }
+                    onPositionChanged: function(m) {
+                        var dx = mapToGlobal(m.x, m.y).x - _startMouseX
+                        if (!dragging && Math.abs(dx) >= dragThreshold) dragging = true
+                        if (dragging) bridge.moveBarX(_startWinX + dx)
+                    }
+                    onReleased: function(m) { if (dragging) bridge.saveBarX(rootWin.x); dragging = false }
+                    onCanceled: dragging = false
+                }
             }
         }
     }
