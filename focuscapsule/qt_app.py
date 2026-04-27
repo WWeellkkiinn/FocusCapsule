@@ -40,8 +40,6 @@ class FocusCapsuleQtApp:
         self._timer = MonotonicFocusTimer(self.runtime)
         self._vd = VirtualDesktopController()
         self._last_vd_sync = 0.0
-        self._settings_open = False
-
         self.bridge = BarBridge(self)
         self.window = BarWindow(self.bridge, saved_x=self.config.capsule_x)
 
@@ -64,8 +62,9 @@ class FocusCapsuleQtApp:
             remaining = self._timer.compute_focus_remaining()
             self.runtime.focus_remaining_sec = remaining
 
-            if remaining in self.runtime.active_trigger_points:
-                self.runtime.active_trigger_points.remove(remaining)
+            triggered = {p for p in self.runtime.active_trigger_points if remaining <= p}
+            if triggered:
+                self.runtime.active_trigger_points -= triggered
                 self._enter_micro_rest()
                 return
 
@@ -196,10 +195,6 @@ class FocusCapsuleQtApp:
         self.runtime.break_remaining_sec = 0
         self._push_snapshot()
 
-    def toggle_settings(self) -> None:
-        self._settings_open = not self._settings_open
-        self._push_snapshot()
-
     def quit(self) -> None:
         self._tick_timer.stop()
         self._vd.close()
@@ -214,7 +209,7 @@ class FocusCapsuleQtApp:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _push_snapshot(self) -> None:
-        self.bridge.push_snapshot(self.runtime, self.config, self._settings_open)
+        self.bridge.push_snapshot(self.runtime, self.config)
 
     @staticmethod
     def _parse_draft(draft: dict) -> SessionConfig:

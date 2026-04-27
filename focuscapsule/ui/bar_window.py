@@ -36,6 +36,7 @@ class BarWindow:
         self._bridge = bridge
         self._saved_x = saved_x
         self._own_hwnd = 0
+        self._pending_visible_h: int = 0  # caches latest maskHeightChanged before Win32 ready
 
         sf = _get_ui_scale()
         self._bar_w = int(_BASE_BAR_W * sf)
@@ -78,9 +79,11 @@ class BarWindow:
     def _setup_win32(self):
         self._own_hwnd = int(self._win.winId())
         setup_toolwindow(self._own_hwnd)
-        self._apply_mask(self._bar_h)
+        # Use cached height if QML already signalled before Win32 was ready
+        self._apply_mask(self._pending_visible_h if self._pending_visible_h else self._bar_h)
 
     def _apply_mask(self, visible_h: int):
+        self._pending_visible_h = visible_h
         if not self._own_hwnd:
             return
         set_bottom_bar_mask(

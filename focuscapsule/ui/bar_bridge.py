@@ -40,7 +40,7 @@ class BarBridge(QObject):
         super().__init__(parent)
         self._app = app
 
-    def push_snapshot(self, runtime: SessionRuntime, config, settings_open: bool = False):
+    def push_snapshot(self, runtime: SessionRuntime, config):
         display_sec = (
             runtime.break_remaining_sec
             if runtime.state in (SessionState.MICRO_RESTING, SessionState.FINISH_RESTING)
