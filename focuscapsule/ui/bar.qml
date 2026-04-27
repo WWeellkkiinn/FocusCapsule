@@ -30,7 +30,6 @@ Window {
         function onErrorChanged(e)    { rootWin.errorText = e }
     }
 
-    // ── Main container ────────────────────────────────────────────────────────
     Item {
         id: container
         anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
@@ -38,7 +37,6 @@ Window {
         readonly property int barH: Math.round(20 * rootWin.sf)
         property bool open: false
 
-        // One unified rectangle expands upward — no gap, no transparent seam
         height: mainRect.height
         onHeightChanged: bridge.setVisibleHeight(height)
 
@@ -64,22 +62,33 @@ Window {
         }
         Timer { id: leaveTimer; interval: 400; onTriggered: container.open = false }
 
-        // Single rounded rectangle — card + bar in one piece, clip hides overflow
+        // ── Transparent container (VibeBar pattern: never draws background itself)
         Rectangle {
             id: mainRect
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-            // Height animates between barH and barH+cardCol.implicitHeight+padding
             readonly property int cardPad: Math.round(20 * rootWin.sf)
             height: container.open
                     ? (container.barH + cardPad + cardCol.implicitHeight)
                     : container.barH
             Behavior on height { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
-            radius: Math.round(10 * rootWin.sf)
-            color: "#15171D"
-            border { width: 1; color: "#263041" }
-            clip: true
 
-            // ── Settings content (sits above bar area) ────────────────────────
+            color: "transparent"   // Always transparent — no rounded-edge AA artifacts
+            border.width: 0
+            clip: true             // Clips card content during collapse animation
+
+            // ── Single background: all corners always rounded, no border ────
+            Rectangle {
+                id: bgRect
+                anchors.fill: parent
+                color: "#15171D"
+                readonly property real r: Math.round(10 * rootWin.sf)
+                topLeftRadius:     r
+                topRightRadius:    r
+                bottomLeftRadius:  r
+                bottomRightRadius: r
+            }
+
+            // ── Settings column ──────────────────────────────────────────────
             Column {
                 id: cardCol
                 anchors {
@@ -88,10 +97,10 @@ Window {
                     right: parent.right; rightMargin: Math.round(12 * rootWin.sf)
                 }
                 spacing: Math.round(6 * rootWin.sf)
+                enabled: container.open
                 opacity: container.open ? 1.0 : 0.0
-                Behavior on opacity { NumberAnimation { duration: 180 } }
+                Behavior on opacity { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
 
-                // Row: 专注时长
                 Row {
                     spacing: Math.round(6 * rootWin.sf); height: Math.round(24 * rootWin.sf)
                     Text { width: Math.round(52 * rootWin.sf); text: "专注时长"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
@@ -104,7 +113,6 @@ Window {
                     Text { text: "分"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
                 }
 
-                // Row: 休息间隔
                 Row {
                     spacing: Math.round(4 * rootWin.sf); height: Math.round(24 * rootWin.sf)
                     Text { width: Math.round(52 * rootWin.sf); text: "休息间隔"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
@@ -124,7 +132,6 @@ Window {
                     Text { text: "分"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
                 }
 
-                // Row: 微休息
                 Row {
                     spacing: Math.round(6 * rootWin.sf); height: Math.round(24 * rootWin.sf)
                     Text { width: Math.round(52 * rootWin.sf); text: "微休息"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
@@ -137,7 +144,6 @@ Window {
                     Text { text: "秒"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
                 }
 
-                // Row: 完成休息
                 Row {
                     spacing: Math.round(6 * rootWin.sf); height: Math.round(24 * rootWin.sf)
                     Text { width: Math.round(52 * rootWin.sf); text: "完成休息"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
@@ -150,14 +156,12 @@ Window {
                     Text { text: "分"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
                 }
 
-                // Row: 声音
                 Row {
                     spacing: Math.round(6 * rootWin.sf); height: Math.round(24 * rootWin.sf)
                     Text { width: Math.round(52 * rootWin.sf); text: "声音提示"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
                     Switch { id: soundSwitch; checked: true; scale: 0.72; anchors.verticalCenter: parent.verticalCenter }
                 }
 
-                // Error
                 Text {
                     visible: rootWin.errorText !== ""
                     text: rootWin.errorText
@@ -165,7 +169,6 @@ Window {
                     wrapMode: Text.WordWrap; width: parent.width
                 }
 
-                // Buttons
                 Row {
                     spacing: Math.round(6 * rootWin.sf)
                     Rectangle {
@@ -194,7 +197,7 @@ Window {
                 }
             }
 
-            // ── Progress bar (always pinned to bottom of mainRect) ────────────
+            // ── Bar content ──────────────────────────────────────────────────
             Item {
                 id: barArea
                 anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
