@@ -204,8 +204,8 @@ Window {
                     readonly property int pad: Math.round(3 * rootWin.sf)
                     anchors { left: parent.left; leftMargin: pad; verticalCenter: parent.verticalCenter }
                     height: parent.height - pad * 2
-                    width: Math.max(0, (barArea.width - pad * 2) * Math.min(1.0, rootWin.snap.progress || 0.0))
-                    visible: width >= height
+                    width: Math.max(height, (barArea.width - pad * 2) * Math.min(1.0, rootWin.snap.progress || 0.0))
+                    visible: rootWin.snap.state !== "IDLE"
                     Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
                     radius: height / 2
                     color: {
