@@ -1,3 +1,4 @@
+PyQt6>=6.6
 customtkinter==5.2.2
 Pillow==11.3.0
 pyvda==0.5.0
