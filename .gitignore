@@ -40,3 +40,6 @@ Thumbs.db
 
 # Local planning doc
 MASTER_BLUEPRINT.md
+
+# VBS launcher config (machine-specific)
+.python-path
