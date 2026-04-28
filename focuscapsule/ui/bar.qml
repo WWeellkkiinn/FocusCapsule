@@ -99,6 +99,8 @@ Window {
         height: mainRect.height
         onHeightChanged: bridge.setVisibleHeight(height)
 
+        TapHandler { acceptedButtons: Qt.RightButton; onDoubleTapped: bridge.quit() }
+
         HoverHandler {
             onHoveredChanged: {
                 if (hovered) {
