@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import PyQt6
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QAbstractAnimation, QEasingCurve, QPropertyAnimation, QTimer
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import QQmlApplicationEngine
 
@@ -17,12 +17,16 @@ _QML_PATH = Path(__file__).with_name("bar.qml")
 
 _BASE_BAR_W = 280
 _BASE_BAR_H = 20
+_SNAP_THRESHOLD = 40  # logical px from edge — snap to center when released within this distance
+
+
+def _primary_ag():
+    """Primary screen available geometry as (x, y, w, h) in Qt logical pixels."""
+    ag = QGuiApplication.primaryScreen().availableGeometry()
+    return ag.x(), ag.y(), ag.width(), ag.height()
 
 
 def _get_ui_scale() -> float:
-    """Softened DPI scale, matching VibeBar's formula.
-    100% → 1.0, 150% → 1.25, 200% → 1.5
-    """
     try:
         dpi = ctypes.windll.user32.GetDpiForSystem()
         win_scale = max(dpi, 96) / 96.0
@@ -36,7 +40,8 @@ class BarWindow:
         self._bridge = bridge
         self._saved_x = saved_x
         self._own_hwnd = 0
-        self._pending_visible_h: int = 0  # caches latest maskHeightChanged before Win32 ready
+        self._pending_visible_h: int = 0
+        self._snap_anim: QPropertyAnimation | None = None
 
         sf = _get_ui_scale()
         self._bar_w = int(_BASE_BAR_W * sf)
@@ -64,22 +69,20 @@ class BarWindow:
 
         QTimer.singleShot(150, self._setup_win32)
 
+    # ── Window setup ──────────────────────────────────────────────────────────
+
     def _position_window(self):
-        screen = QGuiApplication.primaryScreen()
-        ag = screen.availableGeometry()
-
-        x = self._saved_x if self._saved_x is not None else ag.x() + (ag.width() - self._bar_w) // 2
-        x = max(ag.x(), min(x, ag.x() + ag.width() - self._bar_w))
-
+        ax, ay, aw, ah = _primary_ag()
+        x = self._saved_x if self._saved_x is not None else ax + (aw - self._bar_w) // 2
+        x = max(ax, min(x, ax + aw - self._bar_w))
         self._win.setX(x)
-        self._win.setY(ag.y())
+        self._win.setY(ay)
         self._win.setWidth(self._bar_w)
-        self._win.setHeight(ag.height())
+        self._win.setHeight(ah)
 
     def _setup_win32(self):
         self._own_hwnd = int(self._win.winId())
         setup_toolwindow(self._own_hwnd)
-        # Use cached height if QML already signalled before Win32 was ready
         self._apply_mask(self._pending_visible_h if self._pending_visible_h else self._bar_h)
 
     def _apply_mask(self, visible_h: int):
@@ -93,17 +96,47 @@ class BarWindow:
             window_w_logical=self._bar_w,
         )
 
+    # ── Drag — follows mouse directly, no animation ───────────────────────────
+
     def _move_window_x(self, x: int):
-        screen = QGuiApplication.primaryScreen()
-        ag = screen.availableGeometry()
-        clamped = max(ag.x(), min(x, ag.x() + ag.width() - self._bar_w))
+        # Stop any running snap animation so it doesn't fight the drag
+        if self._snap_anim and self._snap_anim.state() != QAbstractAnimation.State.Stopped:
+            self._snap_anim.stop()
+        ax, _ay, aw, _ah = _primary_ag()
+        clamped = max(ax, min(x, ax + aw - self._bar_w))
         self._win.setX(clamped)
 
+    # ── Release / snap — animated ─────────────────────────────────────────────
+
     def _commit_window_x(self, x: int):
-        screen = QGuiApplication.primaryScreen()
-        ag = screen.availableGeometry()
-        clamped = max(ag.x(), min(x, ag.x() + ag.width() - self._bar_w))
+        ax, _ay, aw, _ah = _primary_ag()
+        center_x = ax + (aw - self._bar_w) // 2
+
+        # Left or right edge snap → center
+        if x <= ax + _SNAP_THRESHOLD or x >= ax + aw - self._bar_w - _SNAP_THRESHOLD:
+            self._animate_to_x(center_x)
+            self._bridge.commit_bar_x(center_x)
+            return
+
+        clamped = max(ax, min(x, ax + aw - self._bar_w))
         self._bridge.commit_bar_x(clamped)
+
+    def _animate_to_x(self, target_x: int) -> QPropertyAnimation:
+        if self._snap_anim:
+            self._snap_anim.stop()
+            try:
+                self._snap_anim.finished.disconnect()
+            except RuntimeError:
+                pass
+        anim = QPropertyAnimation(self._win, b"x")
+        anim.setDuration(250)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.setEndValue(target_x)
+        anim.start()
+        self._snap_anim = anim
+        return anim
+
+    # ── Public ────────────────────────────────────────────────────────────────
 
     def own_hwnd(self) -> int:
         return self._own_hwnd
