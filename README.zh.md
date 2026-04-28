@@ -58,20 +58,20 @@ python main.py
 ## 项目结构
 
 ```
-focuscapsule/
-  qt_app.py        # 应用核心、状态机、Tick 循环
-  state.py         # 会话状态与配置数据类
-  timer.py         # 单调时钟专注/休息计时器
-  scheduler.py     # 随机触发点生成器
-  config.py        # JSON 配置持久化（~/.focuscapsule/config.json）
-  ui/
-    bar.qml        # QML UI — 进度条本体
-    bar_bridge.py  # Python ↔ QML 桥接（信号/槽）
-    bar_window.py  # Qt 窗口管理、Win32 Mask、吸附动画
-    win32_bar.py   # Win32 工具函数（DPI、区域遮罩、工具窗口）
-main.py            # 入口
-install.py         # 一次性配置
-focuscapsule.vbs   # 静默启动器（无控制台）
+├── focuscapsule/
+│   ├── qt_app.py        # 应用核心、状态机、Tick 循环
+│   ├── state.py         # 会话状态与配置数据类
+│   ├── timer.py         # 单调时钟专注/休息计时器
+│   ├── scheduler.py     # 随机触发点生成器
+│   ├── config.py        # JSON 配置持久化（~/.focuscapsule/config.json）
+│   └── ui/
+│       ├── bar.qml        # QML UI — 进度条本体
+│       ├── bar_bridge.py  # Python ↔ QML 桥接（信号/槽）
+│       ├── bar_window.py  # Qt 窗口管理、Win32 Mask、吸附动画
+│       └── win32_bar.py   # Win32 工具函数（DPI、区域遮罩、工具窗口）
+├── main.py            # 入口
+├── install.py         # 一次性配置
+└── focuscapsule.vbs   # 静默启动器（无控制台）
 ```
 
 ## 许可

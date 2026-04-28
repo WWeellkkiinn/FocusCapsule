@@ -58,20 +58,20 @@ python main.py
 ## Project structure
 
 ```
-focuscapsule/
-  qt_app.py        # Application core, state machine, tick loop
-  state.py         # Session states and config dataclasses
-  timer.py         # Monotonic focus/rest timer
-  scheduler.py     # Random trigger-point generator
-  config.py        # JSON config persistence (~/.focuscapsule/config.json)
-  ui/
-    bar.qml        # QML UI — the bar itself
-    bar_bridge.py  # Python ↔ QML bridge (signals/slots)
-    bar_window.py  # Qt window management, Win32 mask, snap animation
-    win32_bar.py   # Win32 helpers (DPI, region mask, tool-window setup)
-main.py            # Entry point
-install.py         # One-time setup
-focuscapsule.vbs   # Silent launcher (no console)
+├── focuscapsule/
+│   ├── qt_app.py        # Application core, state machine, tick loop
+│   ├── state.py         # Session states and config dataclasses
+│   ├── timer.py         # Monotonic focus/rest timer
+│   ├── scheduler.py     # Random trigger-point generator
+│   ├── config.py        # JSON config persistence (~/.focuscapsule/config.json)
+│   └── ui/
+│       ├── bar.qml        # QML UI — the bar itself
+│       ├── bar_bridge.py  # Python ↔ QML bridge (signals/slots)
+│       ├── bar_window.py  # Qt window management, Win32 mask, snap animation
+│       └── win32_bar.py   # Win32 helpers (DPI, region mask, tool-window setup)
+├── main.py            # Entry point
+├── install.py         # One-time setup
+└── focuscapsule.vbs   # Silent launcher (no console)
 ```
 
 ## License
