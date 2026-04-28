@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 A minimal Windows focus timer that lives as a slim bar at the bottom of your screen — inspired by the Dynamic Island aesthetic.
 
+![demo](demo.gif)
+
 ## Acknowledgement
 
 The core idea of **randomised micro-break reminders** during a focus session comes from **择恩** and was first described in [this video](https://b23.tv/Ovxmg6q). All credit for that concept goes to them. FocusCapsule is simply a desktop implementation of their approach.
