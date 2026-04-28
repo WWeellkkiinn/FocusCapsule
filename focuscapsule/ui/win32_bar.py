@@ -60,6 +60,22 @@ WS_EX_APPWINDOW = 0x00040000
 DWMWA_BORDER_COLOR = 34
 DWMWA_COLOR_NONE = 0xFFFFFFFE
 
+HWND_TOPMOST = -1
+SWP_NOSIZE = 0x0001
+SWP_NOMOVE = 0x0002
+SWP_NOACTIVATE = 0x0010
+SWP_FRAMECHANGED = 0x0020  # required after SetWindowLongPtr(GWL_EXSTYLE)
+
+_TASKBAR_H_FALLBACK = 48  # assumed taskbar height when GetSystemMetrics fallback is used
+
+user32.SetWindowPos.argtypes = [
+    wintypes.HWND,
+    ctypes.c_ssize_t,  # hWndInsertAfter: signed pointer-width to safely pass HWND_TOPMOST=-1
+    ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+    wintypes.UINT,
+]
+user32.SetWindowPos.restype = wintypes.BOOL
+
 
 def get_primary_work_area() -> tuple[int, int, int, int]:
     """Return (left, top, right, bottom) of primary monitor work area (excludes taskbar)."""
@@ -76,7 +92,7 @@ def get_primary_work_area() -> tuple[int, int, int, int]:
     try:
         w = int(user32.GetSystemMetrics(0))
         h = int(user32.GetSystemMetrics(1))
-        return 0, 0, w, h - 48
+        return 0, 0, w, h - _TASKBAR_H_FALLBACK
     except Exception:
         return 0, 0, 1920, 1032
 
@@ -102,18 +118,22 @@ def set_bottom_bar_mask(
 
 
 def setup_toolwindow(hwnd: int) -> None:
-    """Remove taskbar entry (WS_EX_TOOLWINDOW) and DWM border color."""
+    """Remove taskbar entry, restore TOPMOST after style change, remove DWM border."""
+    h = wintypes.HWND(hwnd)
     try:
-        h = wintypes.HWND(hwnd)
         ex = GetWindowLongPtr(h, GWL_EXSTYLE)
         SetWindowLongPtr(h, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW)
+        # SWP_FRAMECHANGED flushes the style change; HWND_TOPMOST re-asserts topmost
+        # z-order in case SetWindowLongPtr reset it (observed behaviour, not documented).
+        user32.SetWindowPos(
+            h, HWND_TOPMOST,
+            0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        )
     except Exception:
         pass
     try:
         color = ctypes.c_uint(DWMWA_COLOR_NONE)
-        DwmSetWindowAttribute(
-            wintypes.HWND(hwnd), DWMWA_BORDER_COLOR,
-            ctypes.byref(color), ctypes.sizeof(color),
-        )
+        DwmSetWindowAttribute(h, DWMWA_BORDER_COLOR, ctypes.byref(color), ctypes.sizeof(color))
     except Exception:
         pass

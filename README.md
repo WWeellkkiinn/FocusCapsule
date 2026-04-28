@@ -1,40 +1,79 @@
 # FocusCapsule
 
-Windows 桌面随机微休息专注工具。
+English | [中文](README.zh.md)
 
-## 运行环境要求（必须）
+A minimal Windows focus timer that lives as a slim bar at the bottom of your screen — inspired by the Dynamic Island aesthetic.
 
-- 运行与打包必须使用 **Windows 的 Anaconda Python**（建议 `C:\Users\<username>\anaconda3\envs\FocusCapsule\python.exe`）。
-- 不使用 WSL 内的 Python 解释器运行本项目（包括 `~/anaconda3/bin/python`）。
-- 如果缺少依赖，必须安装到 **Windows 的 `FocusCapsule` 环境**，不要安装到 WSL Python 或其他 conda 环境。
-- 如在 WSL 中触发 Windows 命令，必须调用 Windows 绝对路径（如 `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe`）。
+## Acknowledgement
 
-## 打包注意
+The core idea of **randomised micro-break reminders** during a focus session comes from **择恩** and was first described in [this video](https://b23.tv/Ovxmg6q). All credit for that concept goes to them. FocusCapsule is simply a desktop implementation of their approach.
 
-- 必须只通过 `scripts/build_win.bat` 打包，不要手动执行 `pyinstaller`。
-- 打包脚本会强制使用 `C:\Users\<username>\anaconda3\envs\FocusCapsule\python.exe`，并重写构建期 `PATH`，避免误用 base 环境的 Tcl/Tk DLL。
-- 历史问题的根因是：`init.tcl` 来自 `8.6.15`，但构建时错误带入了 base 环境的 `tcl86t.dll/tk86t.dll 8.6.14`，导致启动时报 `Can't find a usable init.tcl`。
-- 打包前先关闭正在运行的旧版 `FocusCapsule.exe`，否则 `dist` 目录可能被系统锁定，导致清理或重打包失败。
+## Features
 
-## 常用命令
+- **Slim bottom bar** — a dark pill hugging the bottom edge of your primary monitor
+- **Focus countdown** — configurable session length with a live progress bar
+- **Random micro-breaks** — fires at unpredictable intervals within your min/max range; the randomness prevents habituation
+- **Finish rest** — cooldown period after the session ends
+- **Rest animation** — progress bar shrinks symmetrically from the center during rest countdowns
+- **Edge snap** — drag the bar to the left or right edge and release; it slides back to the center
+- **Pause / Resume** — pause at any time without losing progress
+- **Hover to expand** — settings panel appears on hover; right-double-click anywhere on the bar to quit
+- **Auto-save** — config persists between sessions
 
-### 运行源码
+## Requirements
+
+- Windows 10 / 11
+- Python 3.11+
+
+## Setup
+
 ```bat
-cd /d C:\dev\FocusCapsule
-C:\Users\<username>\anaconda3\envs\FocusCapsule\python.exe main.py
+pip install -r requirements.txt
+python install.py
 ```
 
-### 安装依赖
+`install.py` writes the path of your current `pythonw.exe` to `.python-path` so the VBS launcher can start the app without a console window.
+
+## Running
+
+Double-click `focuscapsule.vbs` — no console window.
+
+Or from a terminal:
+
 ```bat
-cd /d C:\dev\FocusCapsule
-C:\Users\<username>\anaconda3\envs\FocusCapsule\python.exe -m pip install -r requirements.txt
+python main.py
 ```
 
-### 打包
-```bat
-cd /d C:\dev\FocusCapsule
-scripts\build_win.bat
+## Settings (hover to expand)
+
+| Field | Description |
+|---|---|
+| 专注时长 | Focus duration (minutes) |
+| 完成休息 | Rest duration after the session ends (minutes) |
+| 微休息 | Micro-break length (seconds) |
+| 休息间隔 | Random interval range for micro-breaks (min ~ max, minutes) |
+
+**开始** — start · **暂停** — pause/resume · **结束** — end early · **重启** — restart with same settings
+
+## Project structure
+
+```
+focuscapsule/
+  qt_app.py        # Application core, state machine, tick loop
+  state.py         # Session states and config dataclasses
+  timer.py         # Monotonic focus/rest timer
+  scheduler.py     # Random trigger-point generator
+  config.py        # JSON config persistence (~/.focuscapsule/config.json)
+  ui/
+    bar.qml        # QML UI — the bar itself
+    bar_bridge.py  # Python ↔ QML bridge (signals/slots)
+    bar_window.py  # Qt window management, Win32 mask, snap animation
+    win32_bar.py   # Win32 helpers (DPI, region mask, tool-window setup)
+main.py            # Entry point
+install.py         # One-time setup
+focuscapsule.vbs   # Silent launcher (no console)
 ```
 
-### 产物
-`dist/FocusCapsule/FocusCapsule.exe`
+## License
+
+MIT

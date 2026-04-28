@@ -17,7 +17,7 @@ _QML_PATH = Path(__file__).with_name("bar.qml")
 
 _BASE_BAR_W = 280
 _BASE_BAR_H = 20
-_SNAP_THRESHOLD = 40  # logical px from edge — snap to center when released within this distance
+_SNAP_THRESHOLD = 0  # snap to center only when bar is fully flush with the edge
 
 
 def _primary_ag():
