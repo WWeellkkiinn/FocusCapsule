@@ -37,7 +37,8 @@ Window {
         color: "#f2f4f8"
         font { pixelSize: rootWin._fs; bold: true; family: "Microsoft YaHei UI" }
         horizontalAlignment: Text.AlignHCenter
-        topPadding: rootWin._fp; bottomPadding: rootWin._fp
+        verticalAlignment: Text.AlignVCenter
+        topPadding: 0; bottomPadding: 0
         leftPadding: 0; rightPadding: 0
         background: Rectangle {
             color: "#1E2332"; radius: Math.round(5 * rootWin.sf)
