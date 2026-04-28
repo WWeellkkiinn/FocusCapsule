@@ -280,7 +280,7 @@ Window {
                     radius: height / 2
                     color: {
                         var s = rootWin.snap.state
-                        if (s === "PAUSED")                                     return "#6366F1"
+                        if (s === "PAUSED")                                     return "#DC2626"
                         if (s === "MICRO_RESTING" || s === "FINISH_RESTING")    return "#F59E0B"
                         if (s === "FINISHED")                                   return "#10B981"
                         return "#3B82F6"

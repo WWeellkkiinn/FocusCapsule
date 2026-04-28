@@ -22,7 +22,10 @@ _SNAP_THRESHOLD = 40  # logical px from edge — snap to center when released wi
 
 def _primary_ag():
     """Primary screen available geometry as (x, y, w, h) in Qt logical pixels."""
-    ag = QGuiApplication.primaryScreen().availableGeometry()
+    screen = QGuiApplication.primaryScreen()
+    if screen is None:
+        return 0, 0, 1920, 1080  # safe fallback — should never happen
+    ag = screen.availableGeometry()
     return ag.x(), ag.y(), ag.width(), ag.height()
 
 
@@ -100,8 +103,11 @@ class BarWindow:
 
     def _move_window_x(self, x: int):
         # Stop any running snap animation so it doesn't fight the drag
-        if self._snap_anim and self._snap_anim.state() != QAbstractAnimation.State.Stopped:
-            self._snap_anim.stop()
+        try:
+            if self._snap_anim and self._snap_anim.state() != QAbstractAnimation.State.Stopped:
+                self._snap_anim.stop()
+        except RuntimeError:
+            self._snap_anim = None
         ax, _ay, aw, _ah = _primary_ag()
         clamped = max(ax, min(x, ax + aw - self._bar_w))
         self._win.setX(clamped)
@@ -122,19 +128,24 @@ class BarWindow:
         self._bridge.commit_bar_x(clamped)
 
     def _animate_to_x(self, target_x: int) -> QPropertyAnimation:
-        if self._snap_anim:
-            self._snap_anim.stop()
-            try:
-                self._snap_anim.finished.disconnect()
-            except RuntimeError:
-                pass
-        anim = QPropertyAnimation(self._win, b"x")
-        anim.setDuration(250)
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        anim.setEndValue(target_x)
-        anim.start()
-        self._snap_anim = anim
-        return anim
+        try:
+            if self._snap_anim:
+                self._snap_anim.stop()
+        except RuntimeError:
+            pass
+        finally:
+            self._snap_anim = None
+        try:
+            anim = QPropertyAnimation(self._win, b"x")
+            anim.setDuration(250)
+            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            anim.setEndValue(target_x)
+            anim.finished.connect(lambda: setattr(self, "_snap_anim", None))
+            anim.start()
+            self._snap_anim = anim
+            return anim
+        except RuntimeError:
+            return QPropertyAnimation()  # no-op placeholder
 
     # ── Public ────────────────────────────────────────────────────────────────
 
