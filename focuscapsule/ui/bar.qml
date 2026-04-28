@@ -17,12 +17,71 @@ Window {
             "interval_min_minutes": 3.0,
             "interval_max_minutes": 5.0,
             "break_seconds": 10,
-            "finish_break_minutes": 5,
-            "sound_enabled": true
+            "finish_break_minutes": 5
         }
     })
     property string errorText: ""
     property real sf: (typeof scaleFactor !== "undefined") ? scaleFactor : 1.0
+
+    // Shared style helpers
+    readonly property int _fs:  Math.round(11 * sf)
+    readonly property int _fh:  Math.round(20 * sf)   // field height
+    readonly property int _fw:  Math.round(30 * sf)   // field width
+    readonly property real _fp: (_fh - _fs) / 2        // field vertical padding
+    readonly property int _bh:  Math.round(22 * sf)   // button height
+    readonly property int _bw:  Math.round(64 * sf)   // button width
+    readonly property int _br:  Math.round(6 * sf)    // button radius
+
+    component SettingField: TextField {
+        width: rootWin._fw; height: rootWin._fh
+        color: "#f2f4f8"
+        font { pixelSize: rootWin._fs; bold: true; family: "Microsoft YaHei UI" }
+        horizontalAlignment: Text.AlignHCenter
+        topPadding: rootWin._fp; bottomPadding: rootWin._fp
+        leftPadding: 0; rightPadding: 0
+        background: Rectangle {
+            color: "#1E2332"; radius: Math.round(5 * rootWin.sf)
+            border { width: 1; color: "#2D3850" }
+        }
+        onEditingFinished: rootWin.errorText = ""
+    }
+
+    component SettingLabel: Text {
+        color: "#f2f4f8"
+        font { pixelSize: rootWin._fs; bold: true; family: "Microsoft YaHei UI" }
+        height: rootWin._fh; verticalAlignment: Text.AlignVCenter
+    }
+
+    component UnitLabel: Text {
+        color: "#9aa3b5"
+        font { pixelSize: rootWin._fs; bold: true; family: "Microsoft YaHei UI" }
+        height: rootWin._fh; verticalAlignment: Text.AlignVCenter
+    }
+
+    // Unified action button
+    component ActionButton: Rectangle {
+        id: _btn
+        width: rootWin._bw; height: rootWin._bh; radius: rootWin._br
+        property string label: ""
+        property color baseColor: "#2563EB"
+        property color hoverColor: Qt.darker(baseColor, 1.2)
+        property bool active: false
+        signal clicked()
+
+        color: _ma.containsMouse ? hoverColor : baseColor
+        Behavior on color { ColorAnimation { duration: 100 } }
+
+        Text {
+            anchors.centerIn: parent
+            text: _btn.label; color: "#f2f4f8"
+            font { pixelSize: rootWin._fs; bold: true; family: "Microsoft YaHei UI" }
+        }
+        MouseArea {
+            id: _ma; anchors.fill: parent
+            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+            onClicked: _btn.clicked()
+        }
+    }
 
     Connections {
         target: bridge
@@ -51,7 +110,6 @@ Window {
                         intervalMaxField.text = String(d.interval_max_minutes !== undefined ? d.interval_max_minutes : 5)
                         breakField.text       = String(d.break_seconds        !== undefined ? d.break_seconds        : 10)
                         finishBreakField.text = String(d.finish_break_minutes !== undefined ? d.finish_break_minutes : 5)
-                        soundSwitch.checked   = d.sound_enabled !== false
                         rootWin.errorText     = ""
                     }
                     container.open = true
@@ -62,7 +120,6 @@ Window {
         }
         Timer { id: leaveTimer; interval: 400; onTriggered: container.open = false }
 
-        // ── Transparent container (VibeBar pattern: never draws background itself)
         Rectangle {
             id: mainRect
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
@@ -70,22 +127,19 @@ Window {
             height: container.open
                     ? (container.barH + cardPad + cardCol.implicitHeight)
                     : container.barH
-            Behavior on height { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
-            color: "transparent"   // Always transparent — no rounded-edge AA artifacts
+            color: "transparent"
             border.width: 0
-            clip: true             // Clips card content during collapse animation
+            clip: true
 
-            // ── Single background: all corners always rounded, no border ────
             Rectangle {
                 id: bgRect
                 anchors.fill: parent
                 color: "#15171D"
                 readonly property real r: Math.round(10 * rootWin.sf)
-                topLeftRadius:     r
-                topRightRadius:    r
-                bottomLeftRadius:  r
-                bottomRightRadius: r
+                topLeftRadius: r; topRightRadius: r
+                bottomLeftRadius: r; bottomRightRadius: r
             }
 
             // ── Settings column ──────────────────────────────────────────────
@@ -99,143 +153,143 @@ Window {
                 spacing: Math.round(6 * rootWin.sf)
                 enabled: container.open
                 opacity: container.open ? 1.0 : 0.0
-                Behavior on opacity { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
+                // ── Row A: 专注时长 + 完成休息 ──────────────────────────────
                 Row {
-                    spacing: Math.round(6 * rootWin.sf); height: Math.round(24 * rootWin.sf)
-                    Text { width: Math.round(52 * rootWin.sf); text: "专注时长"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
-                    TextField {
-                        id: totalField; width: Math.round(52 * rootWin.sf); height: Math.round(22 * rootWin.sf)
-                        color: "#C8D0E0"; font.pixelSize: Math.round(11 * rootWin.sf); horizontalAlignment: Text.AlignHCenter
-                        background: Rectangle { color: "#1E2332"; radius: Math.round(5 * rootWin.sf); border { width: 1; color: "#2D3850" } }
-                        onEditingFinished: rootWin.errorText = ""
+                    width: parent.width; height: rootWin._fh; spacing: 0
+                    Item {
+                        width: parent.width * 0.45; height: parent.height
+                        Row {
+                            spacing: Math.round(4 * rootWin.sf)
+                            anchors.verticalCenter: parent.verticalCenter
+                            SettingLabel { text: "专注时长" }
+                            SettingField { id: totalField }
+                            UnitLabel    { text: "分" }
+                        }
                     }
-                    Text { text: "分"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
+                    Item {
+                        width: parent.width * 0.55; height: parent.height
+                        Row {
+                            spacing: Math.round(4 * rootWin.sf)
+                            anchors.verticalCenter: parent.verticalCenter
+                            SettingLabel { text: "完成休息" }
+                            SettingField { id: finishBreakField }
+                            UnitLabel    { text: "分" }
+                        }
+                    }
                 }
 
+                // ── Row B: 微休息 + 休息间隔 ────────────────────────────────
                 Row {
-                    spacing: Math.round(4 * rootWin.sf); height: Math.round(24 * rootWin.sf)
-                    Text { width: Math.round(52 * rootWin.sf); text: "休息间隔"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
-                    TextField {
-                        id: intervalMinField; width: Math.round(44 * rootWin.sf); height: Math.round(22 * rootWin.sf)
-                        color: "#C8D0E0"; font.pixelSize: Math.round(11 * rootWin.sf); horizontalAlignment: Text.AlignHCenter
-                        background: Rectangle { color: "#1E2332"; radius: Math.round(5 * rootWin.sf); border { width: 1; color: "#2D3850" } }
-                        onEditingFinished: rootWin.errorText = ""
+                    width: parent.width; height: rootWin._fh; spacing: 0
+                    Item {
+                        width: parent.width * 0.45; height: parent.height
+                        Row {
+                            spacing: Math.round(4 * rootWin.sf)
+                            anchors.verticalCenter: parent.verticalCenter
+                            SettingLabel { text: "微休息" }
+                            SettingField { id: breakField }
+                            UnitLabel    { text: "秒" }
+                        }
                     }
-                    Text { text: "~"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
-                    TextField {
-                        id: intervalMaxField; width: Math.round(44 * rootWin.sf); height: Math.round(22 * rootWin.sf)
-                        color: "#C8D0E0"; font.pixelSize: Math.round(11 * rootWin.sf); horizontalAlignment: Text.AlignHCenter
-                        background: Rectangle { color: "#1E2332"; radius: Math.round(5 * rootWin.sf); border { width: 1; color: "#2D3850" } }
-                        onEditingFinished: rootWin.errorText = ""
+                    Item {
+                        width: parent.width * 0.55; height: parent.height
+                        Row {
+                            spacing: Math.round(3 * rootWin.sf)
+                            anchors.verticalCenter: parent.verticalCenter
+                            SettingLabel { text: "休息间隔" }
+                            SettingField { id: intervalMinField }
+                            UnitLabel    { text: "~" }
+                            SettingField { id: intervalMaxField }
+                            UnitLabel    { text: "分" }
+                        }
                     }
-                    Text { text: "分"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
                 }
 
-                Row {
-                    spacing: Math.round(6 * rootWin.sf); height: Math.round(24 * rootWin.sf)
-                    Text { width: Math.round(52 * rootWin.sf); text: "微休息"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
-                    TextField {
-                        id: breakField; width: Math.round(52 * rootWin.sf); height: Math.round(22 * rootWin.sf)
-                        color: "#C8D0E0"; font.pixelSize: Math.round(11 * rootWin.sf); horizontalAlignment: Text.AlignHCenter
-                        background: Rectangle { color: "#1E2332"; radius: Math.round(5 * rootWin.sf); border { width: 1; color: "#2D3850" } }
-                        onEditingFinished: rootWin.errorText = ""
-                    }
-                    Text { text: "秒"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
-                }
-
-                Row {
-                    spacing: Math.round(6 * rootWin.sf); height: Math.round(24 * rootWin.sf)
-                    Text { width: Math.round(52 * rootWin.sf); text: "完成休息"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
-                    TextField {
-                        id: finishBreakField; width: Math.round(52 * rootWin.sf); height: Math.round(22 * rootWin.sf)
-                        color: "#C8D0E0"; font.pixelSize: Math.round(11 * rootWin.sf); horizontalAlignment: Text.AlignHCenter
-                        background: Rectangle { color: "#1E2332"; radius: Math.round(5 * rootWin.sf); border { width: 1; color: "#2D3850" } }
-                        onEditingFinished: rootWin.errorText = ""
-                    }
-                    Text { text: "分"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
-                }
-
-                Row {
-                    spacing: Math.round(6 * rootWin.sf); height: Math.round(24 * rootWin.sf)
-                    Text { width: Math.round(52 * rootWin.sf); text: "声音提示"; color: "#6B7A90"; font.pixelSize: Math.round(11 * rootWin.sf); anchors.verticalCenter: parent.verticalCenter }
-                    Switch { id: soundSwitch; checked: true; scale: 0.72; anchors.verticalCenter: parent.verticalCenter }
-                }
-
+                // ── Error ────────────────────────────────────────────────────
                 Text {
                     visible: rootWin.errorText !== ""
                     text: rootWin.errorText
-                    color: "#EF4444"; font.pixelSize: Math.round(10 * rootWin.sf)
+                    color: "#EF4444"
+                    font { pixelSize: Math.round(10 * rootWin.sf); family: "Microsoft YaHei UI" }
                     wrapMode: Text.WordWrap; width: parent.width
                 }
 
-                Row {
-                    spacing: Math.round(6 * rootWin.sf)
-                    Rectangle {
-                        width: Math.round(64 * rootWin.sf); height: Math.round(22 * rootWin.sf); radius: Math.round(6 * rootWin.sf)
-                        color: startArea.containsMouse ? "#1D4ED8" : "#2563EB"
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                        Text { anchors.centerIn: parent; color: "#F0F4FF"; font { pixelSize: Math.round(11 * rootWin.sf); bold: true }
-                            text: (rootWin.snap.state === "IDLE" || rootWin.snap.state === "FINISHED") ? "开始" : "重启" }
-                        MouseArea {
-                            id: startArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                // ── Action buttons (right-aligned) ──────────────────────────
+                Item {
+                    width: parent.width; height: rootWin._bh
+                    Row {
+                        anchors.right: parent.right
+                        spacing: Math.round(6 * rootWin.sf)
+
+                        ActionButton {
+                            visible: rootWin.snap.state !== "IDLE" && rootWin.snap.state !== "FINISHED"
+                            label: rootWin.snap.state === "PAUSED" ? "继续" : "暂停"
+                            baseColor:  rootWin.snap.state === "PAUSED" ? "#D97706" : "#DC2626"
+                            hoverColor: rootWin.snap.state === "PAUSED" ? "#B45309" : "#B91C1C"
+                            onClicked: bridge.togglePause()
+                        }
+                        ActionButton {
+                            visible: rootWin.snap.state !== "IDLE" && rootWin.snap.state !== "FINISHED"
+                            label: "结束"
+                            baseColor: "#374151"; hoverColor: "#1F2937"
+                            onClicked: bridge.endSession()
+                        }
+                        ActionButton {
+                            label: (rootWin.snap.state === "IDLE" || rootWin.snap.state === "FINISHED") ? "开始" : "重启"
+                            baseColor: "#2563EB"; hoverColor: "#1D4ED8"
                             onClicked: bridge.startWithDraft({
-                                "total_minutes": totalField.text, "interval_min_minutes": intervalMinField.text,
-                                "interval_max_minutes": intervalMaxField.text, "break_seconds": breakField.text,
-                                "finish_break_minutes": finishBreakField.text, "sound_enabled": soundSwitch.checked
+                                "total_minutes":        totalField.text,
+                                "interval_min_minutes": intervalMinField.text,
+                                "interval_max_minutes": intervalMaxField.text,
+                                "break_seconds":        breakField.text,
+                                "finish_break_minutes": finishBreakField.text
                             })
                         }
-                    }
-                    Rectangle {
-                        width: Math.round(48 * rootWin.sf); height: Math.round(22 * rootWin.sf); radius: Math.round(6 * rootWin.sf)
-                        visible: rootWin.snap.state !== "IDLE" && rootWin.snap.state !== "FINISHED"
-                        color: endArea.containsMouse ? "#374151" : "#1F2937"
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                        Text { anchors.centerIn: parent; text: "结束"; color: "#9CA3AF"; font.pixelSize: Math.round(11 * rootWin.sf) }
-                        MouseArea { id: endArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: bridge.endSession() }
                     }
                 }
             }
 
-            // ── Bar content ──────────────────────────────────────────────────
+            // ── Bar area ─────────────────────────────────────────────────────
             Item {
                 id: barArea
                 anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
                 height: container.barH
 
+                // Progress bar (behind everything)
                 Rectangle {
                     readonly property int pad: Math.round(3 * rootWin.sf)
-                    anchors { left: parent.left; leftMargin: pad; verticalCenter: parent.verticalCenter }
+                    readonly property bool isResting: {
+                        var s = rootWin.snap.state
+                        var pf = rootWin.snap.paused_from || ""
+                        return s === "MICRO_RESTING" || s === "FINISH_RESTING"
+                            || (s === "PAUSED" && (pf === "MICRO_RESTING" || pf === "FINISH_RESTING"))
+                    }
+                    readonly property real trackW: barArea.width - pad * 2
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    // x references animated `width` so the bar stays centered during shrink
+                    x: isResting ? pad + (trackW - width) / 2 : pad
                     height: parent.height - pad * 2
-                    width: Math.max(height, (barArea.width - pad * 2) * Math.min(1.0, rootWin.snap.progress || 0.0))
+                    width: Math.max(height, trackW * Math.min(1.0, rootWin.snap.progress || 0.0))
                     visible: rootWin.snap.state !== "IDLE"
-                    Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+                    Behavior on width { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                     radius: height / 2
                     color: {
                         var s = rootWin.snap.state
-                        if (s === "MICRO_RESTING" || s === "FINISH_RESTING") return "#F59E0B"
-                        if (s === "FINISHED") return "#10B981"
+                        if (s === "PAUSED")                                     return "#6366F1"
+                        if (s === "MICRO_RESTING" || s === "FINISH_RESTING")    return "#F59E0B"
+                        if (s === "FINISHED")                                   return "#10B981"
                         return "#3B82F6"
                     }
-                    Behavior on color { ColorAnimation { duration: 200 } }
+                    Behavior on color { ColorAnimation { duration: 250 } }
                 }
 
-                Text {
-                    id: countdownText
-                    anchors { left: parent.left; leftMargin: Math.round(10 * rootWin.sf); verticalCenter: parent.verticalCenter }
-                    text: rootWin.snap.countdown || "--:--"
-                    color: "#F0F4FF"; font { family: "Consolas"; pixelSize: Math.round(11 * rootWin.sf); bold: true }
-                }
-                Text {
-                    anchors { left: countdownText.right; leftMargin: Math.round(6 * rootWin.sf); right: parent.right; rightMargin: Math.round(8 * rootWin.sf); verticalCenter: parent.verticalCenter }
-                    text: stateLabel(rootWin.snap.state)
-                    color: "#7A8CA0"; font.pixelSize: Math.round(10 * rootWin.sf); elide: Text.ElideRight
-                }
-
-                TapHandler { acceptedButtons: Qt.RightButton; onDoubleTapped: bridge.quit() }
-
+                // Drag handler – covers whole bar, lowest z
                 MouseArea {
-                    anchors.fill: parent; acceptedButtons: Qt.LeftButton; preventStealing: true
+                    anchors.fill: parent; z: 0
+                    acceptedButtons: Qt.LeftButton; preventStealing: true
                     cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                     property real _startMouseX: 0; property real _startWinX: 0
                     property bool dragging: false
@@ -249,15 +303,21 @@ Window {
                     onReleased: function(m) { if (dragging) bridge.saveBarX(rootWin.x); dragging = false }
                     onCanceled: dragging = false
                 }
+
+                TapHandler { acceptedButtons: Qt.RightButton; onDoubleTapped: bridge.quit() }
+
+                // Countdown – right-anchored, always visible
+                Text {
+                    anchors {
+                        right: parent.right; rightMargin: Math.round(8 * rootWin.sf)
+                        verticalCenter: parent.verticalCenter
+                    }
+                    z: 1
+                    text: rootWin.snap.countdown || "--:--"
+                    color: "#f2f4f8"
+                    font { family: "Consolas"; pixelSize: rootWin._fs; bold: true }
+                }
             }
         }
-    }
-
-    function stateLabel(s) {
-        if (s === "FOCUSING")       return "专注中"
-        if (s === "MICRO_RESTING")  return "微休息中"
-        if (s === "FINISH_RESTING") return "结束休息中"
-        if (s === "FINISHED")       return "已完成"
-        return "悬停展开设置"
     }
 }

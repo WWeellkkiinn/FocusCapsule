@@ -31,12 +31,25 @@ class MonotonicFocusTimer:
         self.runtime.focus_remaining_sec = remaining
         return remaining
 
+    def pause(self, now: float | None = None) -> None:
+        self.runtime.pause_enter_monotonic = time.monotonic() if now is None else now
+
+    def resume(self, now: float | None = None) -> None:
+        current = time.monotonic() if now is None else now
+        elapsed = current - self.runtime.pause_enter_monotonic
+        self.runtime.started_monotonic += elapsed
+        if self.runtime.rest_enter_monotonic is not None:
+            self.runtime.rest_enter_monotonic += elapsed
+
     def compute_break_remaining(self, break_total_sec: int, now: float | None = None) -> int:
         current = time.monotonic() if now is None else now
         if self.runtime.rest_enter_monotonic is None:
+            remaining_f = float(break_total_sec)
             remaining = break_total_sec
         else:
-            elapsed = math.floor(current - self.runtime.rest_enter_monotonic)
-            remaining = max(0, break_total_sec - elapsed)
+            elapsed = current - self.runtime.rest_enter_monotonic
+            remaining_f = max(0.0, break_total_sec - elapsed)
+            remaining = max(0, break_total_sec - math.floor(elapsed))
+        self.runtime.break_remaining_float = remaining_f
         self.runtime.break_remaining_sec = remaining
         return remaining

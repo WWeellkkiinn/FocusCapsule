@@ -11,7 +11,22 @@ def _format_countdown(sec: int) -> str:
     return f"{m:02d}:{s:02d}"
 
 
-def _compute_progress(runtime: SessionRuntime) -> float:
+def _compute_progress(runtime: SessionRuntime, config) -> float:
+    state = runtime.state
+    if state == SessionState.MICRO_RESTING:
+        t = config.break_seconds
+        return max(0.0, min(1.0, runtime.break_remaining_float / t)) if t > 0 else 0.0
+    if state == SessionState.FINISH_RESTING:
+        t = config.finish_break_minutes * 60
+        return max(0.0, min(1.0, runtime.break_remaining_float / t)) if t > 0 else 0.0
+    if state == SessionState.PAUSED:
+        pf = runtime.paused_from
+        if pf == SessionState.MICRO_RESTING.value:
+            t = config.break_seconds
+            return max(0.0, min(1.0, runtime.break_remaining_float / t)) if t > 0 else 0.0
+        if pf == SessionState.FINISH_RESTING.value:
+            t = config.finish_break_minutes * 60
+            return max(0.0, min(1.0, runtime.break_remaining_float / t)) if t > 0 else 0.0
     total = runtime.focus_total_sec
     if total <= 0:
         return 0.0
@@ -25,7 +40,6 @@ def _config_to_map(config) -> dict:
         "interval_max_minutes": config.interval_max_minutes,
         "break_seconds": config.break_seconds,
         "finish_break_minutes": config.finish_break_minutes,
-        "sound_enabled": config.sound_enabled,
     }
 
 
@@ -49,7 +63,8 @@ class BarBridge(QObject):
         snap = {
             "state": runtime.state.value,
             "countdown": _format_countdown(display_sec),
-            "progress": _compute_progress(runtime),
+            "progress": _compute_progress(runtime, config),
+            "paused_from": runtime.paused_from,
             "draft": _config_to_map(config),
         }
         self.snapshotChanged.emit(snap)
@@ -60,6 +75,10 @@ class BarBridge(QObject):
     def startWithDraft(self, draft: dict):
         errors = self._app.start_session_with_draft(dict(draft))
         self.errorChanged.emit("\n".join(errors) if errors else "")
+
+    @pyqtSlot()
+    def togglePause(self):
+        self._app.pause_session()
 
     @pyqtSlot()
     def endSession(self):

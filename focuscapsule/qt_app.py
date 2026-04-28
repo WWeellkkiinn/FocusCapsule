@@ -13,7 +13,6 @@ os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 
-from focuscapsule.audio import play_double_alert, play_triple_alert
 from focuscapsule.config import load_config, save_config
 from focuscapsule.scheduler import build_trigger_points
 from focuscapsule.state import (
@@ -44,7 +43,7 @@ class FocusCapsuleQtApp:
         self.window = BarWindow(self.bridge, saved_x=self.config.capsule_x)
 
         self._tick_timer = QTimer()
-        self._tick_timer.setInterval(200)
+        self._tick_timer.setInterval(250)
         self._tick_timer.timeout.connect(self._tick)
         self._tick_timer.start()
 
@@ -57,6 +56,9 @@ class FocusCapsuleQtApp:
     def _tick(self) -> None:
         self._sync_virtual_desktop()
         state = self.runtime.state
+
+        if state == SessionState.PAUSED:
+            return
 
         if state == SessionState.FOCUSING:
             remaining = self._timer.compute_focus_remaining()
@@ -101,13 +103,11 @@ class FocusCapsuleQtApp:
         self.runtime.state = SessionState.MICRO_RESTING
         self.runtime.break_remaining_sec = self.config.break_seconds
         self._timer.enter_rest()
-        play_double_alert(self.config.sound_enabled)
         self._push_snapshot()
 
     def _exit_micro_rest(self) -> None:
         self._timer.exit_rest()
         self.runtime.state = SessionState.FOCUSING
-        play_double_alert(self.config.sound_enabled)
         self._push_snapshot()
 
     def _enter_finish_rest(self) -> None:
@@ -115,7 +115,6 @@ class FocusCapsuleQtApp:
         self.runtime.focus_remaining_sec = 0
         self.runtime.break_remaining_sec = self._finish_break_sec()
         self._timer.enter_rest()
-        play_triple_alert(self.config.sound_enabled)
         self._push_snapshot()
 
     def _complete_finish_rest(self) -> None:
@@ -170,7 +169,6 @@ class FocusCapsuleQtApp:
             interval_max_minutes=cfg.interval_max_minutes,
             break_seconds=cfg.break_seconds,
             finish_break_minutes=cfg.finish_break_minutes,
-            sound_enabled=cfg.sound_enabled,
         )
         self._try_save_config(self.config)
 
@@ -186,6 +184,17 @@ class FocusCapsuleQtApp:
         self._timer.start()
         self._push_snapshot()
         return []
+
+    def pause_session(self) -> None:
+        state = self.runtime.state
+        if state == SessionState.PAUSED:
+            self._timer.resume()
+            self.runtime.state = SessionState(self.runtime.paused_from)
+        elif state in (SessionState.FOCUSING, SessionState.MICRO_RESTING, SessionState.FINISH_RESTING):
+            self.runtime.paused_from = state.value
+            self.runtime.state = SessionState.PAUSED
+            self._timer.pause()
+        self._push_snapshot()
 
     def end_session(self) -> None:
         if self.runtime.state in (SessionState.MICRO_RESTING, SessionState.FINISH_RESTING):
@@ -219,7 +228,6 @@ class FocusCapsuleQtApp:
             interval_max_minutes=float(draft["interval_max_minutes"]),
             break_seconds=int(draft["break_seconds"]),
             finish_break_minutes=int(draft["finish_break_minutes"]),
-            sound_enabled=bool(draft.get("sound_enabled", True)),
         )
 
     @staticmethod

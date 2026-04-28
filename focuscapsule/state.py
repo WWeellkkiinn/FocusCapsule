@@ -11,6 +11,7 @@ _MIN_INTERVAL_MINUTES = 1 / 60
 class SessionState(str, Enum):
     IDLE = "IDLE"
     FOCUSING = "FOCUSING"
+    PAUSED = "PAUSED"
     MICRO_RESTING = "MICRO_RESTING"
     FINISH_RESTING = "FINISH_RESTING"
     FINISHED = "FINISHED"
@@ -23,7 +24,6 @@ class SessionConfig:
     interval_max_minutes: float = 5.0
     break_seconds: int = 10
     finish_break_minutes: int = 5
-    sound_enabled: bool = True
     seed: int | None = None
     start_mode: str = "main"
     capsule_x: int | None = None
@@ -40,6 +40,9 @@ class SessionRuntime:
     started_monotonic: float = 0.0
     rest_enter_monotonic: float | None = None
     active_trigger_points: set[int] = field(default_factory=set)
+    paused_from: str = ""
+    pause_enter_monotonic: float = 0.0
+    break_remaining_float: float = 0.0
 
 
 def validate_config(config: SessionConfig) -> list[str]:
