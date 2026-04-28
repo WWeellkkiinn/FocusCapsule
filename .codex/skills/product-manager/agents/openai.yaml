@@ -1,4 +1,0 @@
-interface:
-  display_name: "Product manager"
-  short_description: "输出唯一事实蓝图与TODO，并委托执行者落盘实现后进行验收闭环"
-  default_prompt: "使用 $product-manager 将这个需求整理为唯一事实蓝图与 TODO，并下达给 $todo-executor 覆写 MASTER_BLUEPRINT.md、执行 TODO，最后由 $product-manager 验收。"

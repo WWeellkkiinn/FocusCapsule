@@ -1,4 +1,0 @@
-interface:
-  display_name: "TODO Executor"
-  short_description: "读取 MASTER_BLUEPRINT 并按 TODO 顺序执行、回写勾选、提交验收"
-  default_prompt: "使用 $todo-executor 读取当前目录 MASTER_BLUEPRINT.md，逐项完成 TODO 并在完成后打勾，全部完成后调用 $product-manager 验收。"
