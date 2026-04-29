@@ -33,6 +33,7 @@ def load_config() -> SessionConfig:
                 data.get("finish_break_minutes", defaults.finish_break_minutes),
                 defaults.finish_break_minutes,
             ),
+            auto_next=data.get("auto_next", defaults.auto_next) is True,
             seed=data.get("seed", defaults.seed),
             start_mode=str(data.get("start_mode", defaults.start_mode)),
             capsule_x=_parse_optional_int(data.get("capsule_x", defaults.capsule_x)),

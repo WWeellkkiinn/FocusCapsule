@@ -20,6 +20,7 @@ The core idea of **randomised micro-break reminders** during a focus session com
 - **Edge snap** — drag the bar to the left or right edge and release; it slides back to the center
 - **Pause / Resume** — pause at any time without losing progress
 - **Hover to expand** — settings panel appears on hover; right-double-click anywhere on the bar to quit
+- **Auto-loop** — optional toggle to automatically start the next focus session after finish rest ends
 - **Auto-save** — config persists between sessions
 
 ## Requirements
@@ -55,7 +56,7 @@ python main.py
 | 微休息 | Micro-break length (seconds) |
 | 休息间隔 | Random interval range for micro-breaks (min ~ max, minutes) |
 
-**开始** — start · **暂停** — pause/resume · **结束** — end early · **重启** — restart with same settings
+**自动循环** — toggle auto-loop (green = on) · **开始** — start · **暂停** — pause/resume · **结束** — end early · **重启** — restart with same settings
 
 ## Project structure
 

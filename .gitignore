@@ -43,3 +43,5 @@ MASTER_BLUEPRINT.md
 
 # VBS launcher config (machine-specific)
 .python-path
+
+demo.py

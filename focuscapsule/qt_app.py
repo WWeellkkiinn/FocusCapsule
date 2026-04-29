@@ -118,6 +118,9 @@ class FocusCapsuleQtApp:
         self._push_snapshot()
 
     def _complete_finish_rest(self) -> None:
+        if self.config.auto_next:
+            self._apply_session_start(self.config)
+            return
         self.runtime.state = SessionState.FINISHED
         self.runtime.break_remaining_sec = 0
         self._push_snapshot()
@@ -151,6 +154,19 @@ class FocusCapsuleQtApp:
         if errors:
             return errors
 
+        self.config = dataclasses.replace(
+            self.config,
+            total_minutes=cfg.total_minutes,
+            interval_min_minutes=cfg.interval_min_minutes,
+            interval_max_minutes=cfg.interval_max_minutes,
+            break_seconds=cfg.break_seconds,
+            finish_break_minutes=cfg.finish_break_minutes,
+        )
+        self._try_save_config(self.config)
+        self._apply_session_start(self.config)
+        return []
+
+    def _apply_session_start(self, cfg: SessionConfig) -> None:
         total_sec = cfg.total_minutes * 60
         min_sec = max(0, math.ceil(cfg.interval_min_minutes * 60))
         max_sec = max(min_sec, math.floor(cfg.interval_max_minutes * 60))
@@ -161,17 +177,6 @@ class FocusCapsuleQtApp:
             guard_tail_sec=max(45, cfg.break_seconds * 2),
             seed=None,
         )
-
-        self.config = dataclasses.replace(
-            self.config,
-            total_minutes=cfg.total_minutes,
-            interval_min_minutes=cfg.interval_min_minutes,
-            interval_max_minutes=cfg.interval_max_minutes,
-            break_seconds=cfg.break_seconds,
-            finish_break_minutes=cfg.finish_break_minutes,
-        )
-        self._try_save_config(self.config)
-
         self.runtime = SessionRuntime(
             state=SessionState.FOCUSING,
             focus_total_sec=total_sec,
@@ -183,7 +188,11 @@ class FocusCapsuleQtApp:
         self._timer = MonotonicFocusTimer(self.runtime)
         self._timer.start()
         self._push_snapshot()
-        return []
+
+    def toggle_auto_next(self) -> None:
+        self.config = dataclasses.replace(self.config, auto_next=not self.config.auto_next)
+        self._try_save_config(self.config)
+        self._push_snapshot()
 
     def pause_session(self) -> None:
         state = self.runtime.state

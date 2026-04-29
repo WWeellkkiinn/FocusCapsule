@@ -24,6 +24,7 @@ class SessionConfig:
     interval_max_minutes: float = 5.0
     break_seconds: int = 10
     finish_break_minutes: int = 5
+    auto_next: bool = False
     seed: int | None = None
     start_mode: str = "main"
     capsule_x: int | None = None

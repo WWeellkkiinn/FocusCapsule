@@ -17,7 +17,8 @@ Window {
             "interval_min_minutes": 3.0,
             "interval_max_minutes": 5.0,
             "break_seconds": 10,
-            "finish_break_minutes": 5
+            "finish_break_minutes": 5,
+            "auto_next": false
         }
     })
     property string errorText: ""
@@ -30,7 +31,9 @@ Window {
     readonly property real _fp: (_fh - _fs) / 2        // field vertical padding
     readonly property int _bh:  Math.round(22 * sf)   // button height
     readonly property int _bw:  Math.round(64 * sf)   // button width
+    readonly property int _sbw: Math.round(52 * sf)   // small button width
     readonly property int _br:  Math.round(6 * sf)    // button radius
+    readonly property bool _autoNextOn: (snap.draft && snap.draft.auto_next) ? true : false
 
     component SettingField: TextField {
         width: rootWin._fw; height: rootWin._fh
@@ -219,14 +222,25 @@ Window {
                     wrapMode: Text.WordWrap; width: parent.width
                 }
 
-                // ── Action buttons (right-aligned) ──────────────────────────
+                // ── Action buttons ───────────────────────────────────────────
                 Item {
                     width: parent.width; height: rootWin._bh
+
+                    ActionButton {
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                        width: rootWin._sbw
+                        label: "自动循环"
+                        baseColor:  rootWin._autoNextOn ? "#10B981" : "#374151"
+                        hoverColor: rootWin._autoNextOn ? "#059669" : "#1F2937"
+                        onClicked: bridge.toggleAutoNext()
+                    }
+
                     Row {
-                        anchors.right: parent.right
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                         spacing: Math.round(6 * rootWin.sf)
 
                         ActionButton {
+                            width: rootWin._sbw
                             visible: rootWin.snap.state !== "IDLE" && rootWin.snap.state !== "FINISHED"
                             label: rootWin.snap.state === "PAUSED" ? "继续" : "暂停"
                             baseColor:  rootWin.snap.state === "PAUSED" ? "#D97706" : "#DC2626"
@@ -234,12 +248,14 @@ Window {
                             onClicked: bridge.togglePause()
                         }
                         ActionButton {
+                            width: rootWin._sbw
                             visible: rootWin.snap.state !== "IDLE" && rootWin.snap.state !== "FINISHED"
                             label: "结束"
                             baseColor: "#374151"; hoverColor: "#1F2937"
                             onClicked: bridge.endSession()
                         }
                         ActionButton {
+                            width: rootWin._sbw
                             label: (rootWin.snap.state === "IDLE" || rootWin.snap.state === "FINISHED") ? "开始" : "重启"
                             baseColor: "#2563EB"; hoverColor: "#1D4ED8"
                             onClicked: bridge.startWithDraft({

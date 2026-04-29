@@ -40,6 +40,7 @@ def _config_to_map(config) -> dict:
         "interval_max_minutes": config.interval_max_minutes,
         "break_seconds": config.break_seconds,
         "finish_break_minutes": config.finish_break_minutes,
+        "auto_next": config.auto_next,
     }
 
 
@@ -75,6 +76,10 @@ class BarBridge(QObject):
     def startWithDraft(self, draft: dict):
         errors = self._app.start_session_with_draft(dict(draft))
         self.errorChanged.emit("\n".join(errors) if errors else "")
+
+    @pyqtSlot()
+    def toggleAutoNext(self):
+        self._app.toggle_auto_next()
 
     @pyqtSlot()
     def togglePause(self):
