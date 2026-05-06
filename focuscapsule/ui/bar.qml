@@ -99,9 +99,28 @@ Window {
 
         readonly property int barH: Math.round(20 * rootWin.sf)
         property bool open: false
+        property real _maskH: 0
 
         height: mainRect.height
-        onHeightChanged: bridge.setVisibleHeight(height)
+        onHeightChanged: {
+            // Only push mask outward (expanding). Shrinking is deferred to
+            // maskShrinkTimer so the mask never lags behind the visual content.
+            if (height >= _maskH) {
+                _maskH = height
+                bridge.setVisibleHeight(height)
+            }
+        }
+        onOpenChanged: {
+            if (!open) {
+                maskShrinkTimer.restart()
+            } else {
+                maskShrinkTimer.stop()
+                // Reset mask to current (collapsed) height so the upcoming
+                // expand animation can push it outward frame-by-frame.
+                _maskH = height
+                bridge.setVisibleHeight(height)
+            }
+        }
 
         TapHandler { acceptedButtons: Qt.RightButton; onDoubleTapped: bridge.quit() }
 
@@ -109,6 +128,7 @@ Window {
             onHoveredChanged: {
                 if (hovered) {
                     leaveTimer.stop()
+                    maskShrinkTimer.stop()
                     if (!container.open) {
                         var d = rootWin.snap.draft || {}
                         totalField.text       = String(d.total_minutes        !== undefined ? d.total_minutes        : 25)
@@ -125,6 +145,8 @@ Window {
             }
         }
         Timer { id: leaveTimer; interval: 400; onTriggered: container.open = false }
+        // Fires after the collapse animation (250 ms) completes to shrink the mask.
+        Timer { id: maskShrinkTimer; interval: 300; onTriggered: { container._maskH = container.height; bridge.setVisibleHeight(container.height) } }
 
         Rectangle {
             id: mainRect
